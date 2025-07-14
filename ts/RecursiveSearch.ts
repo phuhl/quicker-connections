@@ -10,6 +10,10 @@ import {
 	UP,
 } from "./utils/types.js";
 
+const getDst = (a: number, b: number) => {
+	return Math.abs(a[0] - b[0]);
+};
+
 const getMnhDist = (a: Point, b: Point) => {
 	return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
 };
@@ -42,7 +46,8 @@ export class RecursiveSearch {
 	constructor(
 		private startPos: Point,
 		private endPos: Point,
-		private nodes: Node[]
+		private nodes: Node[],
+		private ctx: CanvasRenderingContext2D | null = null
 	) {}
 
 	public run(): Point[] | null {
@@ -114,6 +119,15 @@ export class RecursiveSearch {
 				continue;
 			}
 
+			if (this.ctx) {
+				this.ctx.strokeStyle = "#f0f000";
+				this.ctx.beginPath();
+				// rectangle around the candidate
+				this.ctx.lineWidth = 2;
+				this.ctx.rect(candidate[0] - 7, candidate[1] - 7, 14, 14);
+				this.ctx.stroke();
+			}
+
 			this.candidates.push({
 				position: candidate,
 				fullyVisited: false,
@@ -126,53 +140,81 @@ export class RecursiveSearch {
 		return false;
 	}
 
+	addCandidate(currentPos: Point, candidate: Point, price: number) {
+		const key = this.getPointKey(candidate);
+
+		if (
+			this.positionsVisited[key] ||
+			getMnhDist(this.endPos, candidate) > ABORT_DIST
+		) {
+			return false;
+		}
+
+		this.positionsVisited[key] = currentPos;
+
+		this.candidates.push({
+			position: candidate,
+			fullyVisited: true,
+			positionFrom: currentPos,
+			price: getMnhDist(currentPos, candidate) + price,
+			targetEstimate: getMnhDist(candidate, this.endPos),
+		});
+
+		if (this.ctx) {
+			this.ctx.strokeStyle = "#00ff00";
+			this.ctx.beginPath();
+			// rectangle around the candidate
+			this.ctx.lineWidth = 2;
+			this.ctx.rect(candidate[0] - 5, candidate[1] - 5, 10, 10);
+			this.ctx.stroke();
+
+			this.ctx.beginPath();
+
+			this.ctx.lineWidth = 1;
+			this.ctx.moveTo(currentPos[0], currentPos[1]);
+			this.ctx.lineTo(candidate[0], candidate[1]);
+			this.ctx.stroke();
+		}
+
+		return true;
+	}
+
 	checkCandidate(currentPos: Point, candidate: Point, price: number) {
-		const candidates = [] as Point[];
 		const blockingNode = this.testPath([currentPos, candidate as Point]);
 		const horizontal = currentPos[1] === candidate[1];
 		let blockingNodePos: Point | null = null;
 		if (blockingNode) {
+			const area = blockingNode.node.linesArea;
 			if (horizontal) {
-				blockingNodePos =
-					Math.abs(currentPos[0] - blockingNode.node.linesArea[LEFT]) >
-					Math.abs(currentPos[0] - blockingNode.node.linesArea[RIGHT])
-						? [blockingNode.node.linesArea[RIGHT], currentPos[1]]
-						: [blockingNode.node.linesArea[LEFT], currentPos[1]];
+				const leftIsCloser =
+					Math.abs(currentPos[0] - area[LEFT]) <
+					Math.abs(currentPos[0] - area[RIGHT]);
+
+				blockingNodePos = leftIsCloser
+					? [area[LEFT], currentPos[1]]
+					: [area[RIGHT], currentPos[1]];
 			} else {
-				blockingNodePos =
-					Math.abs(currentPos[1] - blockingNode.node.linesArea[UP]) >
-					Math.abs(currentPos[1] - blockingNode.node.linesArea[DOWN])
-						? [currentPos[0], blockingNode.node.linesArea[DOWN]]
-						: [currentPos[0], blockingNode.node.linesArea[UP]];
+				const downIsCloser =
+					Math.abs(currentPos[1] - area[UP]) >
+					Math.abs(currentPos[1] - area[DOWN]);
+				blockingNodePos = downIsCloser
+					? [currentPos[0], area[DOWN]]
+					: [currentPos[0], area[UP]];
+			}
+			if (
+				blockingNodePos[0] === currentPos[0] &&
+				blockingNodePos[1] === currentPos[1]
+			) {
+				return;
 			}
 		}
 
 		for (const cOnLine of this.findCandidatesOnLine(
 			currentPos,
-			blockingNode ? (blockingNodePos as Point) : (candidate as Point)
+			blockingNodePos ? blockingNodePos : candidate
 		)) {
-			const key = this.getPointKey(cOnLine as Point);
-			if (
-				this.positionsVisited[key] ||
-				getMnhDist(this.endPos, cOnLine) > ABORT_DIST
-			) {
-				continue;
-			}
-			this.positionsVisited[key] = currentPos;
-
-			candidates.push(cOnLine);
+			this.addCandidate(currentPos, cOnLine, price);
 		}
-
-		this.candidates.push(
-			...candidates.map((c) => ({
-				fullyVisited: true,
-				positionFrom: currentPos,
-				position: c,
-				price: getMnhDist(currentPos, c) + price,
-				targetEstimate: getMnhDist(c, this.endPos),
-			}))
-		);
-		return candidates.pop();
 	}
 
 	constructPath(currentPos: Point) {
@@ -191,15 +233,17 @@ export class RecursiveSearch {
 
 	findCandidatesOnLine(from: Point, to: Point) {
 		const candidates = [to];
-		const distX = Math.abs(from[0] - to[0]);
-		const distY = Math.abs(from[1] - to[1]);
-		const dirX = Math.sign(from[0] - to[0]);
-		const dirY = Math.sign(from[1] - to[1]);
-		const searchY = from[0] === to[0];
+		const vertical = from[0] === to[0];
+		const dist = vertical
+			? Math.abs(from[1] - to[1])
+			: Math.abs(from[0] - to[0]);
+		const dir = vertical
+			? Math.sign(from[1] - to[1])
+			: Math.sign(from[0] - to[0]);
 
 		for (const node of this.nodes) {
 			const [left, up, right, down] = node.linesArea;
-			const points = searchY
+			const points = vertical
 				? [
 						[from[0], up],
 						[from[0], down],
@@ -209,19 +253,15 @@ export class RecursiveSearch {
 						[right, from[1]],
 				  ];
 			for (const p of points) {
-				const distP = searchY ? Math.abs(p[1] - to[1]) : Math.abs(p[0] - to[0]);
-				const dirP = searchY
-					? Math.sign(p[1] - to[1])
-					: Math.sign(p[0] - to[0]);
+				const distP = vertical
+					? Math.abs(from[1] - p[1])
+					: Math.abs(from[0] - p[0]);
+				const dirP = vertical
+					? Math.sign(from[1] - p[1])
+					: Math.sign(from[0] - p[0]);
 
-				if (searchY) {
-					if (dirP === dirY && distP > distY) {
-						continue;
-					}
-				} else {
-					if (dirP === dirX && distP > distX) {
-						continue;
-					}
+				if (dirP !== dir || distP > dist || distP === 0) {
+					continue;
 				}
 				candidates.push([p[0], p[1]] as Point);
 			}

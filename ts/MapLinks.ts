@@ -58,7 +58,10 @@ export class MapLinks {
 	public lastCalcTime = 0;
 	private lastCalculate?: number;
 
-	constructor(private canvas: LGraphCanvas) {
+	constructor(
+		private canvas: LGraphCanvas,
+		private ctx?: CanvasRenderingContext2D
+	) {
 		this.nodesByRight = [];
 		this.nodesById = {};
 		this.paths = [];
@@ -177,8 +180,15 @@ export class MapLinks {
 		nested: boolean = false,
 		nodeBumps: Record<number | string, number[]> = {}
 	) {
-		const search = new RecursiveSearch(outputXY, inputXY, this.nodesByRight);
+		this.ctx.save();
+		const search = new RecursiveSearch(
+			outputXY,
+			inputXY,
+			this.nodesByRight,
+			this.ctx
+		);
 		const path = search.run();
+		this.ctx.restore();
 		if (path) {
 			return path;
 		}
@@ -570,13 +580,13 @@ export class MapLinks {
 				// mapLink() may have expanded the linesArea,
 				// lets put it back into the inputXY so the line is straight
 				path = [outputXYConnection, ...pathFound, inputXYConnection];
-				this.expandTargetNodeLinesArea(targetNodeInfo, path);
+				//				this.expandTargetNodeLinesArea(targetNodeInfo, path);
 			}
 		}
 		if (!path) {
 			path = [outputXYConnection, outputXY, inputXY, inputXYConnection];
 		}
-		this.expandSourceNodeLinesArea(outputNodeInfo, path);
+		//		this.expandSourceNodeLinesArea(outputNodeInfo, path);
 		this.paths.push({
 			path: path as Point[],
 			startNode: sourceNode,

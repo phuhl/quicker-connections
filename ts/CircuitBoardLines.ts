@@ -20,7 +20,7 @@ export class CircuitBoardLines {
 		private debug: boolean = false
 	) {
 		this.mapLinks = new MapLinks(this.canvas);
-		this.recalcMapLinks();
+		this.recalcMapLinks(null);
 		this.enabled = enabled;
 		this.eyeHidden = false;
 		eyeButton.listenEyeButton((hidden: boolean) => {
@@ -36,7 +36,7 @@ export class CircuitBoardLines {
 		return this.enabled && !this.eyeHidden;
 	}
 
-	recalcMapLinksTimeout() {
+	recalcMapLinksTimeout(ctx) {
 		// calculate paths when user is idle...
 		if (!this.skipNextRecalcTimeout) {
 			if (this.recalcTimeout) {
@@ -46,7 +46,7 @@ export class CircuitBoardLines {
 
 			this.recalcTimeout = setTimeout(() => {
 				this.recalcTimeout = null;
-				this.recalcMapLinks();
+				this.recalcMapLinks(ctx);
 				this.redraw();
 			}, this.mapLinks.lastCalcTime * 2);
 		}
@@ -70,19 +70,19 @@ export class CircuitBoardLines {
 		}, 0);
 	}
 
-	recalcMapLinksCheck() {
+	recalcMapLinksCheck(ctx) {
 		if (this.mapLinks) {
 			if (this.mapLinks.lastCalcTime > 100) {
-				this.recalcMapLinksTimeout();
+				this.recalcMapLinksTimeout(ctx);
 				return false;
 			}
 		}
-		this.recalcMapLinks();
+		this.recalcMapLinks(ctx);
 		return true;
 	}
 
-	recalcMapLinks() {
-		this.mapLinks = new MapLinks(this.canvas);
+	recalcMapLinks(ctx) {
+		this.mapLinks = new MapLinks(this.canvas, ctx);
 		this.mapLinks.maxDirectLineDistance = this.maxDirectLineDistance;
 		this.mapLinks.debug = this.debug;
 		const nodesByExecution =
@@ -95,7 +95,7 @@ export class CircuitBoardLines {
 			return false;
 		}
 
-		this.recalcMapLinksCheck();
+		this.recalcMapLinksCheck(ctx);
 
 		this.mapLinks.drawLinks(ctx);
 
