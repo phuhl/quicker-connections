@@ -1,0 +1,22 @@
+{
+	"scripts": {
+		"build": "tsc",
+		"dev": "nodemon --exec 'npm run build' --ignore dist",
+		"example": "bash example/run_example.sh",
+		"docs": "bash example/make_docs.sh",
+		"lint": "eslint js/*.js example/*quick_conn.js"
+	},
+	"dependencies": {
+		"@comfyorg/litegraph": ">=0.7.47",
+		"eslint-config-airbnb-base": "^15.0.0",
+		"litegraph.js": ">=0.7.18"
+	},
+	"devDependencies": {
+		"nodemon": "^3.1.10",
+		"typescript": "^5.8.3"
+	},
+	"nodemonConfig": {
+		"legacyWatch": true,
+		"ext": "ts js json"
+	}
+}
