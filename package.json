@@ -1,6 +1,6 @@
 {
 	"scripts": {
-		"build": "tsc",
+		"build": "rimraf dist && tsc",
 		"dev": "nodemon --exec 'npm run build' --ignore dist",
 		"example": "bash example/run_example.sh",
 		"docs": "bash example/make_docs.sh",
@@ -13,6 +13,7 @@
 	},
 	"devDependencies": {
 		"nodemon": "^3.1.10",
+		"rimraf": "^6.0.1",
 		"typescript": "^5.8.3"
 	},
 	"nodemonConfig": {

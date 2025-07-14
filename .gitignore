@@ -2,7 +2,6 @@
 example/links
 node_modules
 __pycache__
-dist/
 
 # emacs
 *~
