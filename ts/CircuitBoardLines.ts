@@ -82,7 +82,7 @@ export class CircuitBoardLines {
 	}
 
 	recalcMapLinks(ctx) {
-		this.mapLinks = new MapLinks(this.canvas, ctx);
+		this.mapLinks.setCtx(ctx);
 		this.mapLinks.maxDirectLineDistance = this.maxDirectLineDistance;
 		this.mapLinks.debug = this.debug;
 		const nodesByExecution =

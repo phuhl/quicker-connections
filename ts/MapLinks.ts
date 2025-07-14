@@ -9,7 +9,7 @@ import {
 	RIGHT,
 	UP,
 } from "./utils/types.js";
-import { RecursiveSearch } from "./RecursiveSearch.js";
+import { drawDebug, RecursiveSearch } from "./RecursiveSearch.js";
 
 import type {
 	LGraphCanvas,
@@ -70,105 +70,8 @@ export class MapLinks {
 		this.debug = false;
 	}
 
-	isInsideNode(xy: Point) {
-		for (let i = 0; i < this.nodesByRight.length; ++i) {
-			const nodeI = this.nodesByRight[i];
-			if (nodeI.node.isPointInside(xy[0], xy[1])) {
-				return nodeI.node;
-			}
-		}
-		return null;
-	}
-
-	findClippedNode(outputXY: Point, inputXY: Point) {
-		let closestDistance = Number.MAX_SAFE_INTEGER;
-		let closest = null as null | { start: Point; end: Point; node: Node };
-
-		for (let i = 0; i < this.nodesByRight.length; ++i) {
-			const node = this.nodesByRight[i];
-			const clipA = [-1, -1] as Point; // outputXY.slice();
-			const clipB = [-1, -1] as Point; // inputXY.slice();
-			const area = node.linesArea.map((v, i) => (i > UP ? v - 1 : v + 1));
-			const clipped = liangBarsky({
-				a: outputXY,
-				b: inputXY,
-				box: area as BoundingBox,
-				da: clipA,
-				db: clipB,
-			});
-
-			if (clipped === Pos.INSIDE) {
-				const centerX = area[0] + (area[2] - area[0]) / 2;
-				const centerY = area[1] + (area[3] - area[1]) / 2;
-				const dist = Math.sqrt(
-					(centerX - outputXY[0]) ** 2 + (centerY - outputXY[1]) ** 2
-				);
-				if (dist < closestDistance) {
-					closest = {
-						start: clipA,
-						end: clipB,
-						node,
-					};
-					closestDistance = dist;
-				}
-			}
-		}
-		return { clipped: closest, closestDistance };
-	}
-
-	testPath(path: Point[]) {
-		const len1 = path.length - 1;
-		for (let p = 0; p < len1; ++p) {
-			const { clipped } = this.findClippedNode(path[p], path[p + 1]);
-			if (clipped) {
-				return clipped;
-			}
-		}
-		return null;
-	}
-
-	findSimplePathOrBlockingNode(outputXY: Point, inputXY: Point) {
-		const { clipped } = this.findClippedNode(outputXY, inputXY);
-		if (!clipped) {
-			const dist = Math.sqrt(
-				(outputXY[0] - inputXY[0]) ** 2 + (outputXY[1] - inputXY[1]) ** 2
-			);
-			if (dist < this.maxDirectLineDistance) {
-				// direct, nothing blocking us
-				return { path: [outputXY, inputXY] };
-			}
-		}
-
-		const path90Straight = [
-			[outputXY[0], outputXY[1]],
-			[outputXY[0], inputXY[1]],
-			[inputXY[0], inputXY[1]],
-		] as Point[];
-		// |_
-		const clippedVert = this.testPath(path90Straight);
-		if (!clippedVert) {
-			return { path: path90Straight };
-		}
-
-		const pathStraight90 = [
-			[outputXY[0], outputXY[1]],
-			[inputXY[0], outputXY[1]],
-			[inputXY[0], inputXY[1]],
-		] as Point[];
-		// _
-		//  |
-		//
-		// _|
-		const clippedHorz = this.testPath(pathStraight90);
-		if (!clippedHorz) {
-			// add to lines area in destination node?
-			// targetNodeInfo.linesArea[0] -= this.lineSpace;
-			return { path: pathStraight90 };
-		}
-		return {
-			clippedHorz,
-			clippedVert,
-		};
+	setCtx(ctx: CanvasRenderingContext2D) {
+		this.ctx = ctx;
 	}
 
 	mapLink(
@@ -184,8 +87,8 @@ export class MapLinks {
 		const search = new RecursiveSearch(
 			outputXY,
 			inputXY,
-			this.nodesByRight,
-			this.ctx
+			this.nodesByRight
+			//			this.ctx
 		);
 		const path = search.run();
 		this.ctx.restore();
@@ -193,257 +96,6 @@ export class MapLinks {
 			return path;
 		}
 		return [outputXY, inputXY] as Point[];
-
-		// const { clippedHorz, clippedVert, path } =
-		// 	this.findSimplePathOrBlockingNode(outputXY, inputXY);
-		// if (path) {
-		// 	return path;
-		// }
-
-		// const horzDistance = inputXY[0] - outputXY[0];
-		// const vertDistance = inputXY[1] - outputXY[1];
-		// const horzDistanceAbs = Math.abs(horzDistance);
-		// const vertDistanceAbs = Math.abs(vertDistance);
-
-		// let blockingNodeId = null as string | number | null;
-		// let pathAvoidNode = [] as Point[];
-		// let lastPathLocation = null as null | Point;
-
-		// if (horzDistanceAbs > vertDistanceAbs) {
-		// 	// horz then vert to avoid blocking node
-		// 	const blockingLinesArea = clippedHorz.node.linesArea;
-		// 	const {
-		// 		lastPathLocation: lastPathLocationHorz,
-		// 		pathAvoidNode: pathAvoidNodeHorz,
-		// 		unblockNotPossible,
-		// 	} = this.getRouteHorz(blockingLinesArea, outputXY, inputXY);
-		// 	if (unblockNotPossible) {
-		// 		// try vert
-		// 		const {
-		// 			lastPathLocation: lastPathLocationVert,
-		// 			pathAvoidNode: pathAvoidNodeVert,
-		// 		} = this.getRouteVert(blockingLinesArea, outputXY, inputXY);
-		// 		this.adjustBlockingLinesAreaVert(
-		// 			vertDistance,
-		// 			clippedVert.node.node.id,
-		// 			outputXY,
-		// 			nodeBumps,
-		// 			lastPathLocationVert
-		// 		);
-		// 		lastPathLocation = lastPathLocationVert;
-		// 		pathAvoidNode = pathAvoidNodeVert;
-		// 		blockingNodeId = clippedVert.node.node.id;
-		// 	} else {
-		// 		this.adjustBlockingLinesAreaHorz(
-		// 			horzDistance,
-		// 			clippedHorz.node.node.id,
-		// 			outputXY,
-		// 			nodeBumps,
-		// 			lastPathLocationHorz
-		// 		);
-		// 		lastPathLocation = lastPathLocationHorz;
-		// 		pathAvoidNode = pathAvoidNodeHorz;
-		// 		blockingNodeId = clippedHorz.node.node.id;
-		// 	}
-		// } else {
-		// 	const blockingLinesArea = clippedVert.node.linesArea;
-		// 	const {
-		// 		lastPathLocation: lastPathLocationVert,
-		// 		pathAvoidNode: pathAvoidNodeVert,
-		// 		unblockNotPossible,
-		// 	} = this.getRouteVert(blockingLinesArea, outputXY, inputXY);
-		// 	if (unblockNotPossible) {
-		// 		// try horz
-		// 		const {
-		// 			lastPathLocation: lastPathLocationHorz,
-		// 			pathAvoidNode: pathAvoidNodeHorz,
-		// 		} = this.getRouteHorz(blockingLinesArea, outputXY, inputXY);
-		// 		this.adjustBlockingLinesAreaHorz(
-		// 			horzDistance,
-		// 			clippedHorz.node.node.id,
-		// 			outputXY,
-		// 			nodeBumps,
-		// 			lastPathLocationHorz
-		// 		);
-		// 		pathAvoidNode = pathAvoidNodeHorz;
-		// 		blockingNodeId = clippedHorz.node.node.id;
-		// 		lastPathLocation = lastPathLocationHorz;
-		// 	} else {
-		// 		this.adjustBlockingLinesAreaVert(
-		// 			vertDistance,
-		// 			clippedVert.node.node.id,
-		// 			outputXY,
-		// 			nodeBumps,
-		// 			lastPathLocationVert
-		// 		);
-		// 		pathAvoidNode = pathAvoidNodeVert;
-		// 		blockingNodeId = clippedVert.node.node.id;
-		// 		lastPathLocation = lastPathLocationVert;
-		// 	}
-		// }
-
-		// if (isBlocked[blockingNodeId] > 5) {
-		// 	// Blocked too many times, let's return the direct path
-		// 	console.log("Too many blocked", outputXY, inputXY); // eslint-disable-line no-console
-		// 	if (!nested) {
-		// 		return [outputXY, inputXY];
-		// 	} else {
-		// 		return null;
-		// 	}
-		// }
-		// if (isBlocked[blockingNodeId]) {
-		// 	++isBlocked[blockingNodeId];
-		// } else {
-		// 	isBlocked[blockingNodeId] = 1;
-		// }
-		// // console.log('pathavoid', pathAvoidNode);
-		// const nextPath = this.mapLink(
-		// 	lastPathLocation,
-		// 	inputXY,
-		// 	sourceNodeInfo,
-		// 	targetNodeInfo,
-		// 	isBlocked,
-		// 	true,
-		// 	nodeBumps
-		// ) as Point[] | null;
-		// if (!nextPath) {
-		// 	if (!nested) {
-		// 		return [outputXY, inputXY];
-		// 	} else {
-		// 		return null;
-		// 	}
-		// }
-
-		// for (const node in nodeBumps) {
-		// 	this.nodesById[node].linesArea[LEFT] -= nodeBumps[node][LEFT];
-		// 	this.nodesById[node].linesArea[UP] -= nodeBumps[node][UP];
-		// 	this.nodesById[node].linesArea[RIGHT] += nodeBumps[node][RIGHT];
-		// 	this.nodesById[node].linesArea[DOWN] += nodeBumps[node][DOWN];
-		// }
-
-		// const newPath = [...pathAvoidNode, lastPathLocation, ...nextPath.slice(1)];
-		// return newPath.filter(
-		// 	(p, i) =>
-		// 		newPath.findIndex((p2) => {
-		// 			return p[0] === p2[0] && p[1] === p2[1];
-		// 		}) === i
-		// );
-	}
-
-	getRouteHorz(
-		blockingLinesArea: BoundingBox,
-		outputXY: Point,
-		inputXY: Point
-	) {
-		const horzDistance = inputXY[0] - outputXY[0];
-
-		const horzEdgeX =
-			horzDistance <= 0 ? blockingLinesArea[LEFT] : blockingLinesArea[RIGHT];
-		const pathAvoidNode = [
-			[outputXY[0], outputXY[1]],
-			[horzEdgeX, outputXY[1]],
-		] as Point[];
-
-		const vertDistanceViaBlockTop =
-			Math.abs(inputXY[1] - blockingLinesArea[UP]) +
-			Math.abs(outputXY[1] - blockingLinesArea[UP]);
-		const vertDistanceViaBlockBottom =
-			Math.abs(inputXY[1] - blockingLinesArea[DOWN]) +
-			Math.abs(outputXY[1] - blockingLinesArea[DOWN]);
-		const aboveIsShorter =
-			vertDistanceViaBlockTop <= vertDistanceViaBlockBottom;
-
-		const lastPathLocation = [
-			horzEdgeX,
-			aboveIsShorter ? blockingLinesArea[UP] : blockingLinesArea[DOWN],
-		] as Point;
-		const unblockNotPossible = this.testPath([
-			...pathAvoidNode,
-			lastPathLocation,
-		]);
-		return {
-			unblockNotPossible,
-			lastPathLocation,
-			pathAvoidNode,
-		};
-	}
-
-	adjustBlockingLinesAreaHorz(
-		horzDistance: number,
-		blockingNodeId: string | number,
-		outputXY: Point,
-		nodeBumps: Record<number | string, number[]>,
-		lastPathLocation: Point
-	) {
-		nodeBumps[blockingNodeId] = nodeBumps[blockingNodeId] || [0, 0, 0, 0];
-		if (horzDistance <= 0) {
-			nodeBumps[blockingNodeId][RIGHT] += this.lineSpace;
-		} else {
-			nodeBumps[blockingNodeId][LEFT] += this.lineSpace;
-		}
-		if (lastPathLocation[1] < outputXY[1]) {
-			nodeBumps[blockingNodeId][UP] += this.lineSpace;
-		} else {
-			nodeBumps[blockingNodeId][DOWN] += this.lineSpace;
-		}
-	}
-
-	getRouteVert(
-		blockingLinesArea: BoundingBox,
-		outputXY: Point,
-		inputXY: Point
-	) {
-		const vertDistance = inputXY[1] - outputXY[1];
-
-		const vertEdgeY =
-			vertDistance <= 0 ? blockingLinesArea[DOWN] : blockingLinesArea[UP];
-		const pathAvoidNode = [
-			[outputXY[0], outputXY[1]],
-			[outputXY[0], vertEdgeY],
-		] as Point[];
-
-		const horzDistanceViaBlockLeft =
-			Math.abs(inputXY[0] - blockingLinesArea[LEFT]) +
-			Math.abs(outputXY[0] - blockingLinesArea[LEFT]);
-		const horzDistanceViaBlockRight =
-			Math.abs(inputXY[0] - blockingLinesArea[RIGHT]) +
-			Math.abs(outputXY[0] - blockingLinesArea[RIGHT]);
-
-		const lastPathLocation = [
-			horzDistanceViaBlockLeft <= horzDistanceViaBlockRight
-				? blockingLinesArea[LEFT]
-				: blockingLinesArea[RIGHT],
-			vertEdgeY,
-		] as Point;
-		const unblockNotPossible = this.testPath([
-			...pathAvoidNode,
-			lastPathLocation,
-		]);
-		return {
-			unblockNotPossible,
-			lastPathLocation,
-			pathAvoidNode,
-		};
-	}
-
-	adjustBlockingLinesAreaVert(
-		vertDistance: number,
-		blockingNodeId: string | number,
-		outputXY: Point,
-		nodeBumps: Record<number | string, number[]>,
-		lastPathLocation: Point
-	) {
-		nodeBumps[blockingNodeId] = nodeBumps[blockingNodeId] || [0, 0, 0, 0];
-		if (vertDistance <= 0) {
-			nodeBumps[blockingNodeId][DOWN] += this.lineSpace;
-		} else {
-			nodeBumps[blockingNodeId][UP] += this.lineSpace;
-		}
-		if (lastPathLocation[0] < outputXY[0]) {
-			nodeBumps[blockingNodeId][LEFT] += this.lineSpace;
-		} else {
-			nodeBumps[blockingNodeId][RIGHT] += this.lineSpace;
-		}
 	}
 
 	expandSourceNodeLinesArea(sourceNodeInfo: Node, path: Point[]) {
@@ -490,6 +142,9 @@ export class MapLinks {
 		return null;
 	}
 
+	private previousNodePositions: Record<string | number, BoundingBox> = {};
+	private previousLinks: Record<string | number, [string, string]> = {};
+
 	mapLinks(nodesByExecution: LGraphNode[]) {
 		if (!this.canvas.graph.links) {
 			console.error("Missing graph.links", this.canvas.graph); // eslint-disable-line no-console
@@ -498,7 +153,6 @@ export class MapLinks {
 
 		const startCalcTime = new Date().getTime();
 
-		this.nodesByRight = [];
 		this.nodesById = {};
 		this.nodesByRight = nodesByExecution.map((node) => {
 			const bArea = new Float32Array(4);
@@ -522,11 +176,92 @@ export class MapLinks {
 			this.nodesById[node.id] = obj;
 			return obj;
 		});
-		//
+
 		this.nodesByRight.sort((a, b) => a.area[UP] - b.area[UP]);
 
+		const nodeIdsChanged = new Set<string>();
+		const linkIdsChanged = new Set<string>();
+		for (const id in this.previousNodePositions) {
+			if (!this.nodesById[id]) {
+				delete this.previousNodePositions[id];
+				nodeIdsChanged.add(id);
+			}
+		}
+
+		for (const id in this.nodesById) {
+			if (!this.previousNodePositions[id]) {
+				nodeIdsChanged.add(id);
+				this.previousNodePositions[id] = this.nodesById[id].area;
+				continue;
+			}
+			if (
+				this.previousNodePositions[id][0] !== this.nodesById[id].area[0] ||
+				this.previousNodePositions[id][1] !== this.nodesById[id].area[1] ||
+				this.previousNodePositions[id][2] !== this.nodesById[id].area[2] ||
+				this.previousNodePositions[id][3] !== this.nodesById[id].area[3]
+			) {
+				nodeIdsChanged.add(id);
+				this.previousNodePositions[id] = this.nodesById[id].area;
+			}
+		}
+
+		for (const link in this.canvas.graph?.links) {
+			const linkData = this.canvas.graph.links[link];
+			if (!linkData) {
+				continue;
+			}
+			if (
+				!this.previousLinks[link] ||
+				this.previousLinks[link][0] !== String(linkData.origin_id) ||
+				this.previousLinks[link][1] !== String(linkData.target_id)
+			) {
+				this.previousLinks[link] = [
+					String(linkData.origin_id),
+					String(linkData.target_id),
+				];
+				linkIdsChanged.add(link);
+			}
+		}
+		for (const link in this.previousLinks) {
+			if (!this.canvas.graph.links[link]) {
+				delete this.previousLinks[link];
+				linkIdsChanged.add(link);
+			}
+		}
+
+		for (const linkId of linkIdsChanged) {
+			const link = this.canvas.graph?.links[linkId];
+			if (link) {
+				nodeIdsChanged.add(String(link.origin_id));
+				nodeIdsChanged.add(String(link.target_id));
+			}
+		}
+
+		this.paths = this.paths.filter(
+			(path) =>
+				!nodeIdsChanged.has(String(path.startNode.id)) &&
+				!nodeIdsChanged.has(String(path.targetNode.id)) &&
+				!linkIdsChanged.has(
+					String(path.startNode.outputs[path.startSlot].links)
+				)
+		);
+		let targetsChanged = new Set<string>();
+		for (const id of nodeIdsChanged) {
+			for (const output of this.nodesById[id]?.node?.outputs ?? []) {
+				targetsChanged = targetsChanged.union(
+					new Set(
+						output?.links?.map((linkId) =>
+							String(this.canvas.graph?.links[linkId].target_id)
+						)
+					)
+				);
+			}
+		}
+		const nodesChangedByInputOrOutput = targetsChanged.union(
+			new Set(nodeIdsChanged)
+		);
 		for (const { node } of this.nodesByRight) {
-			if (!node.outputs) {
+			if (!node.outputs || !nodesChangedByInputOrOutput.has(String(node.id))) {
 				continue;
 			}
 			for (const input of node.inputs) {
@@ -561,8 +296,10 @@ export class MapLinks {
 		const targetNodeInfo = this.nodesById[targetNode.id];
 		const sourceNodeInfo = this.nodesById[sourceNode.id];
 
-		outputXY[0] = outputNodeInfo.linesArea[RIGHT] + 1;
-		inputXY[0] = targetNodeInfo.linesArea[LEFT] - 1;
+		// outputXY[0] = outputNodeInfo.linesArea[RIGHT] + 1;
+		// inputXY[0] = targetNodeInfo.linesArea[LEFT] - 1;
+		outputXY[0] = outputNodeInfo.linesArea[RIGHT];
+		inputXY[0] = targetNodeInfo.linesArea[LEFT];
 
 		const inputBlockedByNode = this.getNodeOnPos(inputXY);
 		const outputBlockedByNode = this.getNodeOnPos(outputXY);
@@ -686,7 +423,7 @@ export class MapLinks {
 			ctx.stroke();
 			ctx.closePath();
 
-			if (this.debug || true) {
+			if (this.debug) {
 				for (let p = 0; p < path.length - 1; ++p) {
 					const pos = path[p];
 					ctx.fillStyle = "#ff0000";
@@ -702,17 +439,18 @@ export class MapLinks {
 			}
 		});
 
-		ctx.lineWidth = 1;
-		ctx.lineStyle = "#00ff00";
-		for (const node of this.nodesByRight) {
-			ctx.beginPath();
-			ctx.rect(
-				node.linesArea[0],
-				node.linesArea[1],
-				node.linesArea[2] - node.linesArea[0],
-				node.linesArea[3] - node.linesArea[1]
-			);
-			ctx.stroke();
+		if (this.debug) {
+			ctx.lineWidth = 1;
+			for (const node of this.nodesByRight) {
+				ctx.beginPath();
+				ctx.rect(
+					node.linesArea[0],
+					node.linesArea[1],
+					node.linesArea[2] - node.linesArea[0],
+					node.linesArea[3] - node.linesArea[1]
+				);
+				ctx.stroke();
+			}
 		}
 
 		if (this.debug) {
@@ -750,7 +488,7 @@ export class MapLinks {
 				return false;
 			});
 		}
-
+		//		drawDebug(ctx);
 		ctx.restore();
 	}
 }
