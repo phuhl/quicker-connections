@@ -14,8 +14,8 @@ const WRONG_DIR_MAX_DIST = 300;
 const ABORT_DIST = 1000;
 const CANDIDATS_ON_LINE_OVERSHOOT = 100;
 const MAX_DIST_NODE = 100;
-const GRID_SIZE = 15;
-const MAX_ITERATIONS = 80;
+const GRID_SIZE = 5;
+const MAX_ITERATIONS = 120;
 
 const getMnhDist = (a: Point, b: Point) => {
 	return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
