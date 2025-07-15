@@ -3,7 +3,6 @@ import { findClippedNode } from "./utils/findClippedNode.js";
 
 export const GRID_SIZE = 5;
 const WRONG_DIR_MAX_DIST = GRID_SIZE * 60;
-const ABORT_DIST = GRID_SIZE * 200;
 const CANDIDATS_ON_LINE_OVERSHOOT = GRID_SIZE * 20;
 const MAX_DIST_NODE = GRID_SIZE * 20;
 const MAX_ITERATIONS = 120;
@@ -263,10 +262,7 @@ export class RecursiveSearch {
 		if (
 			this.positionsVisited[key] ||
 			(this.gridSpaceUsed[gridX]?.[gridY] &&
-				!(
-					candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1]
-				)) ||
-			getMnhDist(this.endPos, candidate) > ABORT_DIST
+				!(candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1]))
 		) {
 			return false;
 		}
