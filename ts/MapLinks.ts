@@ -9,7 +9,7 @@ import {
 	RIGHT,
 	UP,
 } from "./utils/types.js";
-import { drawDebug, RecursiveSearch } from "./RecursiveSearch.js";
+import { drawDebug, RecursiveSearch, GRID_SIZE } from "./RecursiveSearch.js";
 
 import type {
 	LGraphCanvas,
@@ -65,7 +65,7 @@ export class MapLinks {
 		this.nodesByRight = [];
 		this.nodesById = {};
 		this.paths = {};
-		this.lineSpace = 5;
+		this.lineSpace = GRID_SIZE;
 		this.lineRadius = Math.floor(LiteGraph.NODE_SLOT_HEIGHT / 2);
 		this.maxDirectLineDistance = Number.MAX_SAFE_INTEGER;
 		this.debug = false;
@@ -343,8 +343,10 @@ export class MapLinks {
 		const inputXY = Array.from(inputXYConnection) as Point;
 		const targetNodeInfo = this.nodesById[targetNode.id];
 
-		outputXY[0] = outputNodeInfo.linesArea[RIGHT];
-		inputXY[0] = targetNodeInfo.linesArea[LEFT];
+		outputXY[0] =
+			Math.ceil(outputNodeInfo.linesArea[RIGHT] / GRID_SIZE) * GRID_SIZE;
+		inputXY[0] =
+			Math.floor(targetNodeInfo.linesArea[LEFT] / GRID_SIZE) * GRID_SIZE;
 
 		const inputBlockedByNode = this.getNodeOnPos(inputXY);
 		const outputBlockedByNode = this.getNodeOnPos(outputXY);

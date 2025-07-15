@@ -1,10 +1,10 @@
 import { liangBarsky } from "./liangBarsky.js";
 import { DOWN, LEFT, Pos, RIGHT, UP, } from "./utils/types.js";
-const WRONG_DIR_MAX_DIST = 300;
-const ABORT_DIST = 1000;
-const CANDIDATS_ON_LINE_OVERSHOOT = 100;
-const MAX_DIST_NODE = 100;
-const GRID_SIZE = 5;
+export const GRID_SIZE = 5;
+const WRONG_DIR_MAX_DIST = GRID_SIZE * 60;
+const ABORT_DIST = GRID_SIZE * 200;
+const CANDIDATS_ON_LINE_OVERSHOOT = GRID_SIZE * 20;
+const MAX_DIST_NODE = GRID_SIZE * 20;
 const MAX_ITERATIONS = 120;
 const getMnhDist = (a, b) => {
     return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);

@@ -1,5 +1,5 @@
 import { DOWN, LEFT, RIGHT, UP, } from "./utils/types.js";
-import { RecursiveSearch } from "./RecursiveSearch.js";
+import { RecursiveSearch, GRID_SIZE } from "./RecursiveSearch.js";
 const normalizeVector = (v) => {
     const len = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
     if (len === 0) {
@@ -34,7 +34,7 @@ export class MapLinks {
         this.nodesByRight = [];
         this.nodesById = {};
         this.paths = {};
-        this.lineSpace = 5;
+        this.lineSpace = GRID_SIZE;
         this.lineRadius = Math.floor(LiteGraph.NODE_SLOT_HEIGHT / 2);
         this.maxDirectLineDistance = Number.MAX_SAFE_INTEGER;
         this.debug = false;
@@ -266,8 +266,10 @@ export class MapLinks {
         const inputXYConnection = targetNode.getInputPos(link.target_slot);
         const inputXY = Array.from(inputXYConnection);
         const targetNodeInfo = this.nodesById[targetNode.id];
-        outputXY[0] = outputNodeInfo.linesArea[RIGHT];
-        inputXY[0] = targetNodeInfo.linesArea[LEFT];
+        outputXY[0] =
+            Math.ceil(outputNodeInfo.linesArea[RIGHT] / GRID_SIZE) * GRID_SIZE;
+        inputXY[0] =
+            Math.floor(targetNodeInfo.linesArea[LEFT] / GRID_SIZE) * GRID_SIZE;
         const inputBlockedByNode = this.getNodeOnPos(inputXY);
         const outputBlockedByNode = this.getNodeOnPos(outputXY);
         let path = null;
