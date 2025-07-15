@@ -1,4 +1,4 @@
-import { BoundingBox, Point, Pos } from "./utils/types.js";
+import { BoundingBox, Point, Pos } from "./types.js";
 
 const EPSILON = 1e-6;
 

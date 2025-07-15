@@ -1,4 +1,3 @@
-import { liangBarsky } from "./liangBarsky.js";
 import {
 	BoundingBox,
 	Point,
@@ -9,6 +8,7 @@ import {
 	RIGHT,
 	UP,
 } from "./utils/types.js";
+import { findClippedNode } from "./utils/findClippedNode.js";
 import { drawDebug, RecursiveSearch, GRID_SIZE } from "./RecursiveSearch.js";
 
 import type {
@@ -284,6 +284,7 @@ export class MapLinks {
 
 	getLinksFromNodes(nodeIds: Set<string>) {
 		const linkIds = new Set<string>();
+		// all links that are in/outputs of the nodes
 		for (const node of nodeIds) {
 			if (this.nodesById[node]) {
 				for (const links of (this.nodesById[node].node.outputs ?? []).map(
@@ -300,6 +301,21 @@ export class MapLinks {
 				}
 			}
 		}
+
+		// all links that go through the nodes
+		const nodes = Array.from(nodeIds)
+			.map((id) => this.nodesById[id])
+			.filter(Boolean);
+		for (const key in this.paths) {
+			const { path } = this.paths[key];
+			for (let i = 0; i < path.length - 1; i++) {
+				const clippingRes = findClippedNode(path[i], path[i + 1], nodes);
+				if (clippingRes.clipped) {
+					linkIds.add(key);
+				}
+			}
+		}
+
 		return linkIds;
 	}
 

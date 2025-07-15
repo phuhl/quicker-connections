@@ -1,4 +1,4 @@
-import { Pos } from "./utils/types.js";
+import { Pos } from "./types.js";
 const EPSILON = 1e-6;
 /**
  * @preserve

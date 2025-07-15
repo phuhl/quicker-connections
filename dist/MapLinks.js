@@ -1,4 +1,5 @@
 import { DOWN, LEFT, RIGHT, UP, } from "./utils/types.js";
+import { findClippedNode } from "./utils/findClippedNode.js";
 import { RecursiveSearch, GRID_SIZE } from "./RecursiveSearch.js";
 const normalizeVector = (v) => {
     const len = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
@@ -219,6 +220,7 @@ export class MapLinks {
     }
     getLinksFromNodes(nodeIds) {
         const linkIds = new Set();
+        // all links that are in/outputs of the nodes
         for (const node of nodeIds) {
             if (this.nodesById[node]) {
                 for (const links of (this.nodesById[node].node.outputs ?? []).map((o) => o.links ?? [])) {
@@ -228,6 +230,19 @@ export class MapLinks {
                 }
                 for (const link of (this.nodesById[node].node.inputs ?? []).map((o) => o.link)) {
                     linkIds.add(String(link));
+                }
+            }
+        }
+        // all links that go through the nodes
+        const nodes = Array.from(nodeIds)
+            .map((id) => this.nodesById[id])
+            .filter(Boolean);
+        for (const key in this.paths) {
+            const { path } = this.paths[key];
+            for (let i = 0; i < path.length - 1; i++) {
+                const clippingRes = findClippedNode(path[i], path[i + 1], nodes);
+                if (clippingRes.clipped) {
+                    linkIds.add(key);
                 }
             }
         }

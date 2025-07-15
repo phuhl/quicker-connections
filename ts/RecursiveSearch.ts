@@ -1,14 +1,5 @@
-import { liangBarsky } from "./liangBarsky.js";
-import {
-	BoundingBox,
-	DOWN,
-	LEFT,
-	Node,
-	Point,
-	Pos,
-	RIGHT,
-	UP,
-} from "./utils/types.js";
+import { DOWN, LEFT, Node, Point, RIGHT, UP } from "./utils/types.js";
+import { findClippedNode } from "./utils/findClippedNode.js";
 
 export const GRID_SIZE = 5;
 const WRONG_DIR_MAX_DIST = GRID_SIZE * 60;
@@ -465,56 +456,12 @@ export class RecursiveSearch {
 		//		console.log("test");
 		const len1 = path.length - 1;
 		for (let p = 0; p < len1; ++p) {
-			const { clipped } = this.findClippedNode(path[p], path[p + 1]);
+			const { clipped } = findClippedNode(path[p], path[p + 1], this.nodes);
 			if (clipped) {
 				return clipped;
 			}
 		}
 		return null;
-	}
-
-	findClippedNode(outputXY: Point, inputXY: Point) {
-		let closestDistance = Number.MAX_SAFE_INTEGER;
-		let closest = null as null | { start: Point; end: Point; node: Node };
-
-		for (let i = 0; i < this.nodes.length; ++i) {
-			const node = this.nodes[i];
-			const clipA = [-1, -1] as Point; // outputXY.slice();
-			const clipB = [-1, -1] as Point; // inputXY.slice();
-			//			const area = node.linesArea;
-			// const area = node.linesArea.map((v, i) => (i > UP ? v - 1 : v + 1));
-			const area = [
-				node.linesArea[LEFT] + 1,
-				node.linesArea[UP] + 1,
-				node.linesArea[RIGHT] - 1,
-				node.linesArea[DOWN] - 1,
-			];
-
-			const clipped = liangBarsky({
-				a: outputXY,
-				b: inputXY,
-				box: area as BoundingBox,
-				da: clipA,
-				db: clipB,
-			});
-
-			if (clipped === Pos.INSIDE) {
-				const centerX = area[0] + (area[2] - area[0]) / 2;
-				const centerY = area[1] + (area[3] - area[1]) / 2;
-				const dist = Math.sqrt(
-					(centerX - outputXY[0]) ** 2 + (centerY - outputXY[1]) ** 2
-				);
-				if (dist < closestDistance) {
-					closest = {
-						start: clipA,
-						end: clipB,
-						node,
-					};
-					closestDistance = dist;
-				}
-			}
-		}
-		return { clipped: closest, closestDistance };
 	}
 }
 
