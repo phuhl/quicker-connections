@@ -10,7 +10,7 @@ import { CircuitBoardLinesFactory } from "./CircuitBoardLines.js";
 const quickConnection = new QuickConnection();
 quickConnection.init();
 
-const quickConnectionId = "quick-connections";
+const quickConnectionId = "quicker-connections";
 
 const quickConnectionsExt = {
 	name: "Quick Connections",
@@ -33,7 +33,7 @@ const quickConnectionsExt = {
 			category: [quickConnectionId, "enable", "connectDotOnly"],
 			name: "Connect with dot",
 			tooltip:
-				"Disable to connect with text too, a bigger area to release the mouse button",
+				"Disable to connect with text too, a bigger area to release the mouse button on",
 			type: "boolean",
 			defaultValue: true,
 			onChange: (...args) => {
@@ -76,25 +76,6 @@ const circuitBoardLinesExt = {
 				circuitBoardLines.enabled = option === 1;
 				if (app.graph) {
 					app.graph.config.links_ontop = option === 2;
-					return app.graph.change.apply(app.graph, args);
-				}
-				return null;
-			},
-		},
-		{
-			id: `${circuitBoardId}.only90or45`,
-			name: "Prefer 90 or 45 degree lines",
-			category: [circuitBoardId, "enable", "only90or45"],
-			tooltip:
-				"Show mostly 90 or 45 degree lines, normally it'll link directly at any angle if the line if there are no nodes in the way",
-			type: "boolean",
-			defaultValue: true,
-			onChange: (...args) => {
-				circuitBoardLines.maxDirectLineDistance = args[0]
-					? 20
-					: Number.MAX_SAFE_INTEGER;
-
-				if (app.graph) {
 					return app.graph.change.apply(app.graph, args);
 				}
 				return null;
