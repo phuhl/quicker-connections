@@ -24,6 +24,7 @@ export class MapLinks {
     nodesById;
     paths;
     lineSpace;
+    nodeNeighborDist;
     lineRadius;
     maxDirectLineDistance;
     debug;
@@ -36,6 +37,7 @@ export class MapLinks {
         this.nodesById = {};
         this.paths = {};
         this.lineSpace = GRID_SIZE;
+        this.nodeNeighborDist = this.lineSpace * 8;
         this.lineRadius = Math.floor(LiteGraph.NODE_SLOT_HEIGHT / 2);
         this.maxDirectLineDistance = Number.MAX_SAFE_INTEGER;
         this.debug = false;
@@ -61,12 +63,20 @@ export class MapLinks {
                     const pathEnd = pathPoint1[0] < pathPoint2[0] ? pathPoint2 : pathPoint1;
                     if (pathEnd[0] >= left && pathStart[0] <= right) {
                         if (pathStart[1] <= up && pathStart[1] > up - this.lineSpace) {
-                            node.linesArea[UP] -= this.lineSpace;
-                            touchedNodes.add(String(node.node.id));
+                            if (pathStart[1] > up - this.lineSpace) {
+                                node.linesArea[UP] -= this.lineSpace;
+                            }
+                            if (pathStart[1] > up - this.nodeNeighborDist) {
+                                touchedNodes.add(String(node.node.id));
+                            }
                         }
-                        if (pathEnd[1] >= down && pathEnd[1] < down + this.lineSpace) {
-                            node.linesArea[DOWN] += this.lineSpace;
-                            touchedNodes.add(String(node.node.id));
+                        if (pathEnd[1] >= down) {
+                            if (pathEnd[1] < down + this.lineSpace) {
+                                node.linesArea[DOWN] += this.lineSpace;
+                            }
+                            if (pathEnd[1] < down + this.nodeNeighborDist) {
+                                touchedNodes.add(String(node.node.id));
+                            }
                         }
                     }
                 }
@@ -74,13 +84,21 @@ export class MapLinks {
                     const pathStart = pathPoint1[1] < pathPoint2[1] ? pathPoint1 : pathPoint2;
                     const pathEnd = pathPoint1[1] < pathPoint2[1] ? pathPoint2 : pathPoint1;
                     if (pathEnd[1] >= up && pathStart[1] <= down) {
-                        if (pathStart[0] <= left && pathStart[0] > left - this.lineSpace) {
-                            node.linesArea[LEFT] -= this.lineSpace;
-                            touchedNodes.add(String(node.node.id));
+                        if (pathStart[0] <= left) {
+                            if (pathStart[0] > left - this.lineSpace) {
+                                node.linesArea[LEFT] -= this.lineSpace;
+                            }
+                            if (pathStart[0] > left - this.nodeNeighborDist) {
+                                touchedNodes.add(String(node.node.id));
+                            }
                         }
-                        if (pathEnd[0] >= right && pathEnd[0] < right + this.lineSpace) {
-                            node.linesArea[RIGHT] += this.lineSpace;
-                            touchedNodes.add(String(node.node.id));
+                        if (pathEnd[0] >= right) {
+                            if (pathEnd[0] < right + this.lineSpace) {
+                                node.linesArea[RIGHT] += this.lineSpace;
+                            }
+                            if (pathEnd[0] < right + this.nodeNeighborDist) {
+                                touchedNodes.add(String(node.node.id));
+                            }
                         }
                     }
                 }
@@ -112,9 +130,6 @@ export class MapLinks {
         const startCalcTime = new Date().getTime();
         this.parseNodes(nodesByExecution);
         const changedNodes = this.updateNodes();
-        if (changedNodes.size > 0) {
-            console.log("changed nodes", changedNodes); // eslint-disable-line no-console
-        }
         const changedLinks = this.updateLinks();
         // - remove nodes that are not in the graph anymore from previousNodePositions
         // - remove links that are not in the graph anymore from previousLinks
@@ -122,7 +137,7 @@ export class MapLinks {
         // - check if links have changed, if so, add to linkIdsChanged
         // - get all links from changed nodes
         // - get all nodes from changed links, also using linkTouchesNode
-        const linkIdsFromNodes = this.getLinksFromNodes(changedNodes);
+        const linkIdsFromNodes = this.getLinksFromNodes(changedNodes).union(this.getTouchedLinks(changedNodes));
         const nodesToBeUpdated = this.getTouchedNodes(linkIdsFromNodes)
             .union(this.getNodesFromLinks(changedLinks))
             .union(this.getNodesFromLinks(linkIdsFromNodes));
@@ -225,11 +240,15 @@ export class MapLinks {
             if (this.nodesById[node]) {
                 for (const links of (this.nodesById[node].node.outputs ?? []).map((o) => o.links ?? [])) {
                     for (const link of links) {
-                        linkIds.add(String(link));
+                        if (link) {
+                            linkIds.add(String(link));
+                        }
                     }
                 }
                 for (const link of (this.nodesById[node].node.inputs ?? []).map((o) => o.link)) {
-                    linkIds.add(String(link));
+                    if (link) {
+                        linkIds.add(String(link));
+                    }
                 }
             }
         }
@@ -267,6 +286,17 @@ export class MapLinks {
             }
         }
         return nodeIds;
+    }
+    getTouchedLinks(nodeIds) {
+        const linkIds = new Set();
+        for (const linkId in this.paths) {
+            for (const node of this.linkTouchesNode[linkId] ?? []) {
+                if (nodeIds.has(node)) {
+                    linkIds.add(String(linkId));
+                }
+            }
+        }
+        return linkIds;
     }
     definePathForLink(linkId) {
         const link = this.canvas.graph?.links[linkId];

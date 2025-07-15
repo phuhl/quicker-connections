@@ -22,8 +22,6 @@ export const findClippedNode = (
 		const node = nodes[i];
 		const clipA = [-1, -1] as Point; // outputXY.slice();
 		const clipB = [-1, -1] as Point; // inputXY.slice();
-		//			const area = node.linesArea;
-		// const area = node.linesArea.map((v, i) => (i > UP ? v - 1 : v + 1));
 		const area = [
 			node.linesArea[LEFT] + 1,
 			node.linesArea[UP] + 1,
