@@ -392,13 +392,6 @@ export class RecursiveSearch {
 		const dir = vertical
 			? Math.sign(to[1] - from[1])
 			: Math.sign(to[0] - from[0]);
-		// const blockedDimension = vertical ? to[1] : to[0];
-		// const blockedRanges = [
-		// 	[
-		// 		blockedDimension - MIN_CANDIDATE_DISTANCE,
-		// 		blockedDimension + MIN_CANDIDATE_DISTANCE,
-		// 	],
-		// ] as Point[];
 
 		for (const node of this.nodes) {
 			const [left, up, right, down] = node.linesArea;
@@ -426,22 +419,9 @@ export class RecursiveSearch {
 					? Math.sign(p[1] - from[1])
 					: Math.sign(p[0] - from[0]);
 
-				//				const blockedDimension = vertical ? p[1] : p[0];
-				if (
-					dirP !== dir ||
-					distP > dist ||
-					distP === 0 // ||
-					// blockedRanges.some(
-					// 	(range) =>
-					// 		blockedDimension >= range[0] && blockedDimension <= range[1]
-					// )
-				) {
+				if (dirP !== dir || distP > dist || distP === 0) {
 					continue;
 				}
-				// blockedRanges.push([
-				// 	blockedDimension - MIN_CANDIDATE_DISTANCE,
-				// 	blockedDimension + MIN_CANDIDATE_DISTANCE,
-				// ]);
 				candidates.push([p[0], p[1]] as Point);
 			}
 		}
