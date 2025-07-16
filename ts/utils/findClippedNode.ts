@@ -1,14 +1,5 @@
-import {
-	Point,
-	BoundingBox,
-	Pos,
-	Node,
-	LEFT,
-	UP,
-	RIGHT,
-	DOWN,
-} from "./types.js";
 import { liangBarsky } from "./liangBarsky.js";
+import { BoundingBox, Node, Point, Pos } from "./types.js";
 
 export const findClippedNode = (
 	outputXY: Point,
@@ -22,12 +13,7 @@ export const findClippedNode = (
 		const node = nodes[i];
 		const clipA = [-1, -1] as Point; // outputXY.slice();
 		const clipB = [-1, -1] as Point; // inputXY.slice();
-		const area = [
-			node.linesArea[LEFT] + 1,
-			node.linesArea[UP] + 1,
-			node.linesArea[RIGHT] - 1,
-			node.linesArea[DOWN] - 1,
-		];
+		const area = node.linesArea;
 
 		const clipped = liangBarsky({
 			a: outputXY,

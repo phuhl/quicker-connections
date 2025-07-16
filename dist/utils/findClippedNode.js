@@ -1,5 +1,5 @@
-import { Pos, LEFT, UP, RIGHT, DOWN, } from "./types.js";
 import { liangBarsky } from "./liangBarsky.js";
+import { Pos } from "./types.js";
 export const findClippedNode = (outputXY, inputXY, nodes) => {
     let closestDistance = Number.MAX_SAFE_INTEGER;
     let closest = null;
@@ -7,12 +7,7 @@ export const findClippedNode = (outputXY, inputXY, nodes) => {
         const node = nodes[i];
         const clipA = [-1, -1]; // outputXY.slice();
         const clipB = [-1, -1]; // inputXY.slice();
-        const area = [
-            node.linesArea[LEFT] + 1,
-            node.linesArea[UP] + 1,
-            node.linesArea[RIGHT] - 1,
-            node.linesArea[DOWN] - 1,
-        ];
+        const area = node.linesArea;
         const clipped = liangBarsky({
             a: outputXY,
             b: inputXY,

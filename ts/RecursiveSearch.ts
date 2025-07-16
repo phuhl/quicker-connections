@@ -373,12 +373,12 @@ export class RecursiveSearch {
 			}
 			const points = vertical
 				? [
-						[from[0], Math.floor(up / GRID_SIZE) * GRID_SIZE],
-						[from[0], Math.ceil(down / GRID_SIZE) * GRID_SIZE],
+						[from[0], Math.floor(up / GRID_SIZE) * GRID_SIZE - GRID_SIZE],
+						[from[0], Math.ceil(down / GRID_SIZE) * GRID_SIZE + GRID_SIZE],
 				  ]
 				: [
-						[Math.floor(left / GRID_SIZE) * GRID_SIZE, from[1]],
-						[Math.ceil(right / GRID_SIZE) * GRID_SIZE, from[1]],
+						[Math.floor(left / GRID_SIZE) * GRID_SIZE - GRID_SIZE, from[1]],
+						[Math.ceil(right / GRID_SIZE) * GRID_SIZE + GRID_SIZE, from[1]],
 				  ];
 			for (const p of points) {
 				const distP = vertical
