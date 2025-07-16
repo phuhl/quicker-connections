@@ -83,17 +83,7 @@ export class RecursiveSearch {
 	}
 
 	private search(currentPos: Point): Point[] | null {
-		this.candidates.push({
-			gridX: Math.floor(currentPos[0] / GRID_SIZE),
-			gridY: Math.floor(currentPos[1] / GRID_SIZE),
-			key: this.getPointKey(currentPos),
-			position: currentPos,
-			fullyVisited: true,
-			positionFrom: currentPos,
-			price: 0,
-			targetEstimate: getMnhDist(currentPos, this.endPos),
-		});
-		this.positionsVisited[this.getPointKey(currentPos)] = currentPos;
+		this.addCandidate(currentPos, currentPos, 0, true);
 
 		let pathFound = false as false | Point[];
 
@@ -104,7 +94,6 @@ export class RecursiveSearch {
 			pathFound = this.findCandidates(candidate) || pathFound;
 
 			if (pathFound) {
-				//				return pathFound;
 				filterInPlace(
 					this.candidates,
 					(p) => p.price + p.targetEstimate < this.targetFoundPrice
@@ -208,41 +197,9 @@ export class RecursiveSearch {
 
 			const candidates = this.findCandidatesOnLine(currentPos, parentCandidate);
 			for (const candidate of candidates) {
-				const key = this.getPointKey(candidate);
-				if (this.positionsVisited[key]) {
-					continue;
-				}
-
-				if (this.ctx) {
-					this.ctx.strokeStyle = "#f0f000";
-					this.ctx.beginPath();
-					// rectangle around the candidate
-					this.ctx.lineWidth = 2;
-					this.ctx.rect(candidate[0] - 7, candidate[1] - 7, 14, 14);
-					this.ctx.stroke();
-				}
-
-				const gridX = Math.floor(candidate[0] / GRID_SIZE);
-				const gridY = Math.floor(candidate[1] / GRID_SIZE);
-				if (
-					this.gridSpaceUsed[gridX]?.[gridY] &&
-					!(candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1])
-				) {
-					continue;
-				}
-
-				this.gridSpaceUsed[gridX] = this.gridSpaceUsed[gridX] || [];
-				this.gridSpaceUsed[gridX][gridY] = true;
-
-				this.candidates.push({
-					key,
-					gridX,
-					gridY,
-					position: candidate,
-					fullyVisited: false,
+				this.addCandidate(currentPos, candidate, 0, false, {
 					group: currentCandidate.key + ";" + parentKey,
 					positionParent: parentCandidate,
-					positionFrom: currentPos,
 					price: currentCandidate.price,
 					targetEstimate:
 						getMnhDist(currentPos, candidate) +
@@ -254,7 +211,13 @@ export class RecursiveSearch {
 		return false;
 	}
 
-	addCandidate(currentPos: Point, candidate: Point, price: number) {
+	addCandidate(
+		currentPos: Point,
+		candidate: Point,
+		price: number,
+		fullyVisited: boolean,
+		candidateVals: Partial<Candidate> = {}
+	) {
 		const key = this.getPointKey(candidate);
 		const gridX = Math.floor(candidate[0] / GRID_SIZE);
 		const gridY = Math.floor(candidate[1] / GRID_SIZE);
@@ -267,7 +230,9 @@ export class RecursiveSearch {
 			return false;
 		}
 
-		this.positionsVisited[key] = currentPos;
+		if (fullyVisited) {
+			this.positionsVisited[key] = currentPos;
+		}
 		this.gridSpaceUsed[gridX] = this.gridSpaceUsed[gridX] || [];
 		this.gridSpaceUsed[gridX][gridY] = true;
 		this.candidates.push({
@@ -275,25 +240,29 @@ export class RecursiveSearch {
 			gridY,
 			key,
 			position: candidate,
-			fullyVisited: true,
+			fullyVisited,
 			positionFrom: currentPos,
 			price: getMnhDist(currentPos, candidate) + price,
 			targetEstimate: getMnhDist(candidate, this.endPos),
+			...candidateVals,
 		});
 
 		if (this.ctx) {
-			this.ctx.strokeStyle = "#00ff00";
 			this.ctx.beginPath();
-			// rectangle around the candidate
-			this.ctx.lineWidth = 2;
-			this.ctx.rect(candidate[0] - 5, candidate[1] - 5, 10, 10);
-			this.ctx.stroke();
-
-			this.ctx.beginPath();
-
-			this.ctx.lineWidth = 1;
-			this.ctx.moveTo(currentPos[0], currentPos[1]);
-			this.ctx.lineTo(candidate[0], candidate[1]);
+			if (fullyVisited) {
+				this.ctx.strokeStyle = "#00ff00";
+				this.ctx.lineWidth = 2;
+				this.ctx.rect(candidate[0] - 5, candidate[1] - 5, 10, 10);
+				this.ctx.stroke();
+				this.ctx.beginPath();
+				this.ctx.lineWidth = 1;
+				this.ctx.moveTo(currentPos[0], currentPos[1]);
+				this.ctx.lineTo(candidate[0], candidate[1]);
+			} else {
+				this.ctx.strokeStyle = "#f0f000";
+				this.ctx.lineWidth = 2;
+				this.ctx.rect(candidate[0] - 7, candidate[1] - 7, 14, 14);
+			}
 			this.ctx.stroke();
 		}
 
@@ -364,7 +333,7 @@ export class RecursiveSearch {
 		}
 
 		for (const cOnLine of groupCandidates) {
-			this.addCandidate(currentPos, cOnLine.position, price);
+			this.addCandidate(currentPos, cOnLine.position, price, true);
 		}
 	}
 
