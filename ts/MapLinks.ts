@@ -15,6 +15,7 @@ import type {
 	LGraphCanvas,
 	LGraphNode,
 	LiteGraph as _LiteGraph,
+	LLink,
 } from "@comfyorg/litegraph";
 
 declare const LiteGraph: typeof _LiteGraph;
@@ -40,15 +41,17 @@ const getVectorDist = (a: Point, b: Point) => {
 };
 
 export class MapLinks {
-	private nodesByRight: Node[];
+	private nodes: Node[];
 	private nodesById: Record<any, Node>;
 	private paths: Record<
 		string,
 		{
 			path: Point[];
 			startNode: LGraphNode;
+			sourceNode: LGraphNode;
 			targetNode: LGraphNode;
-			startSlot: number;
+			sourceSlot: number;
+			targetSlot: number;
 		}
 	>;
 	private lineSpace: number;
@@ -63,7 +66,7 @@ export class MapLinks {
 		private canvas: LGraphCanvas,
 		private ctx?: CanvasRenderingContext2D
 	) {
-		this.nodesByRight = [];
+		this.nodes = [];
 		this.nodesById = {};
 		this.paths = {};
 		this.lineSpace = GRID_SIZE;
@@ -77,88 +80,109 @@ export class MapLinks {
 		this.ctx = ctx;
 	}
 
-	mapLink(outputXY: Point, inputXY: Point) {
+	mapLink(
+		outputXY: Point,
+		inputXY: Point,
+		source: Node,
+		target: Node,
+		link: LLink
+	) {
 		this.ctx.save();
+
+		const paths = Object.keys(this.paths)
+			.filter(
+				(path) =>
+					(this.paths[path].sourceNode.id !== source.node.id ||
+						this.paths[path].sourceSlot !== link.origin_slot) &&
+					(this.paths[path].targetNode.id !== target.node.id ||
+						this.paths[path].targetSlot !== link.target_slot)
+			)
+			.map((key) => this.paths[key].path);
+
 		const search = new RecursiveSearch(
 			outputXY,
 			inputXY,
-			this.nodesByRight
-			//			this.ctx
+			this.nodes,
+			paths,
+			this.ctx
 		);
-		const path = search.run() || ([outputXY, inputXY] as Point[]);
-		this.ctx.restore();
-
-		const touchedNodes = new Set<string>();
-		for (const node of this.nodesByRight) {
-			for (let i = 0; i < path.length - 1; i++) {
-				const pathPoint1 = path[i],
-					pathPoint2 = path[i + 1];
-				const [left, up, right, down] = node.linesArea;
-				const horizontal = pathPoint1[1] === pathPoint2[1];
-				if (horizontal) {
-					const pathStart =
-						pathPoint1[0] < pathPoint2[0] ? pathPoint1 : pathPoint2;
-					const pathEnd =
-						pathPoint1[0] < pathPoint2[0] ? pathPoint2 : pathPoint1;
-
-					if (pathEnd[0] >= left && pathStart[0] <= right) {
-						if (pathStart[1] <= up && pathStart[1] > up - this.lineSpace) {
-							if (pathStart[1] > up - this.lineSpace) {
-								node.linesArea[UP] -= this.lineSpace;
-							}
-							if (pathStart[1] > up - this.nodeNeighborDist) {
-								touchedNodes.add(String(node.node.id));
-							}
-						}
-						if (pathEnd[1] >= down) {
-							if (pathEnd[1] < down + this.lineSpace) {
-								node.linesArea[DOWN] += this.lineSpace;
-							}
-							if (pathEnd[1] < down + this.nodeNeighborDist) {
-								touchedNodes.add(String(node.node.id));
-							}
-						}
-					}
-				} else {
-					const pathStart =
-						pathPoint1[1] < pathPoint2[1] ? pathPoint1 : pathPoint2;
-					const pathEnd =
-						pathPoint1[1] < pathPoint2[1] ? pathPoint2 : pathPoint1;
-
-					if (pathEnd[1] >= up && pathStart[1] <= down) {
-						if (pathStart[0] <= left) {
-							if (pathStart[0] > left - this.lineSpace) {
-								node.linesArea[LEFT] -= this.lineSpace;
-							}
-							if (pathStart[0] > left - this.nodeNeighborDist) {
-								touchedNodes.add(String(node.node.id));
-							}
-						}
-						if (pathEnd[0] >= right) {
-							if (pathEnd[0] < right + this.lineSpace) {
-								node.linesArea[RIGHT] += this.lineSpace;
-							}
-							if (pathEnd[0] < right + this.nodeNeighborDist) {
-								touchedNodes.add(String(node.node.id));
-							}
-						}
-					}
-				}
-			}
+		try {
+			return search.run() ?? ([outputXY, inputXY] as Point[]);
+		} catch (e) {
+			console.log("Error in RecursiveSearch", e);
+		} finally {
+			this.ctx.restore();
 		}
 
-		return { path, touchedNodes };
+		// const touchedNodes = new Set<string>();
+		// for (const node of this.nodesByRight) {
+		// 	for (let i = 0; i < path.length - 1; i++) {
+		// 		const pathPoint1 = path[i],
+		// 			pathPoint2 = path[i + 1];
+		// 		const [left, up, right, down] = node.linesArea;
+		// 		const horizontal = pathPoint1[1] === pathPoint2[1];
+		// 		if (horizontal) {
+		// 			const pathStart =
+		// 				pathPoint1[0] < pathPoint2[0] ? pathPoint1 : pathPoint2;
+		// 			const pathEnd =
+		// 				pathPoint1[0] < pathPoint2[0] ? pathPoint2 : pathPoint1;
+
+		// 			if (pathEnd[0] >= left && pathStart[0] <= right) {
+		// 				if (pathStart[1] <= up && pathStart[1] > up - this.lineSpace) {
+		// 					if (pathStart[1] > up - this.lineSpace) {
+		// 						node.linesArea[UP] -= this.lineSpace;
+		// 					}
+		// 					if (pathStart[1] > up - this.nodeNeighborDist) {
+		// 						touchedNodes.add(String(node.node.id));
+		// 					}
+		// 				}
+		// 				if (pathEnd[1] >= down) {
+		// 					if (pathEnd[1] < down + this.lineSpace) {
+		// 						node.linesArea[DOWN] += this.lineSpace;
+		// 					}
+		// 					if (pathEnd[1] < down + this.nodeNeighborDist) {
+		// 						touchedNodes.add(String(node.node.id));
+		// 					}
+		// 				}
+		// 			}
+		// 		} else {
+		// 			const pathStart =
+		// 				pathPoint1[1] < pathPoint2[1] ? pathPoint1 : pathPoint2;
+		// 			const pathEnd =
+		// 				pathPoint1[1] < pathPoint2[1] ? pathPoint2 : pathPoint1;
+
+		// 			if (pathEnd[1] >= up && pathStart[1] <= down) {
+		// 				if (pathStart[0] <= left) {
+		// 					if (pathStart[0] > left - this.lineSpace) {
+		// 						node.linesArea[LEFT] -= this.lineSpace;
+		// 					}
+		// 					if (pathStart[0] > left - this.nodeNeighborDist) {
+		// 						touchedNodes.add(String(node.node.id));
+		// 					}
+		// 				}
+		// 				if (pathEnd[0] >= right) {
+		// 					if (pathEnd[0] < right + this.lineSpace) {
+		// 						node.linesArea[RIGHT] += this.lineSpace;
+		// 					}
+		// 					if (pathEnd[0] < right + this.nodeNeighborDist) {
+		// 						touchedNodes.add(String(node.node.id));
+		// 					}
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 	getNodeOnPos(xy: Point) {
-		for (let i = 0; i < this.nodesByRight.length; ++i) {
-			const nodeI = this.nodesByRight[i];
-			const { linesArea } = nodeI;
+		for (let i = 0; i < this.nodes.length; ++i) {
+			const nodeI = this.nodes[i];
+			const { area } = nodeI;
 			if (
-				xy[0] > linesArea[0] &&
-				xy[1] > linesArea[1] &&
-				xy[0] < linesArea[2] &&
-				xy[1] < linesArea[3]
+				xy[0] > area[0] &&
+				xy[1] > area[1] &&
+				xy[0] < area[2] &&
+				xy[1] < area[3]
 			) {
 				return nodeI;
 			}
@@ -168,7 +192,6 @@ export class MapLinks {
 
 	private previousNodePositions: Record<string | number, BoundingBox> = {};
 	private previousLinks: Record<string | number, [string, string]> = {};
-	private linkTouchesNode: Record<string, string[]> = {};
 
 	mapLinks(nodesByExecution: LGraphNode[]) {
 		if (!this.canvas.graph.links) {
@@ -181,8 +204,11 @@ export class MapLinks {
 		this.parseNodes(nodesByExecution);
 
 		const changedNodes = this.updateNodes();
-
 		const changedLinks = this.updateLinks();
+
+		if (changedNodes.size === 0 && changedLinks.size === 0) {
+			return;
+		}
 
 		// - remove nodes that are not in the graph anymore from previousNodePositions
 		// - remove links that are not in the graph anymore from previousLinks
@@ -191,14 +217,12 @@ export class MapLinks {
 		// - get all links from changed nodes
 		// - get all nodes from changed links, also using linkTouchesNode
 
-		const linkIdsFromNodes = this.getLinksFromNodes(changedNodes).union(
-			this.getTouchedLinks(changedNodes)
+		const linkIdsFromNodes = this.getLinksFromNodes(changedNodes);
+		const nodesToBeUpdated = this.getNodesFromLinks(changedLinks).union(
+			this.getNodesFromLinks(linkIdsFromNodes)
 		);
-		const nodesToBeUpdated = this.getTouchedNodes(linkIdsFromNodes)
-			.union(this.getNodesFromLinks(changedLinks))
-			.union(this.getNodesFromLinks(linkIdsFromNodes));
 
-		for (const { node } of this.nodesByRight) {
+		for (const { node } of this.nodes) {
 			if (!node.outputs || !nodesToBeUpdated.has(String(node.id))) {
 				continue;
 			}
@@ -217,29 +241,23 @@ export class MapLinks {
 
 	parseNodes(nodes: LGraphNode[]) {
 		this.nodesById = {};
-		this.nodesByRight = nodes.map((node) => {
+		this.nodes = nodes.map((node) => {
 			const bArea = new Float32Array(4);
 			node.getBounding(bArea);
 			const area = [
-				bArea[0] - this.lineSpace / 2,
-				bArea[1] - this.lineSpace / 2,
-				bArea[0] + bArea[2] + this.lineSpace / 2,
-				bArea[1] + bArea[3] + this.lineSpace / 2,
+				(Math.floor(bArea[0] / GRID_SIZE) - 1) * GRID_SIZE + 1,
+				(Math.floor(bArea[1] / GRID_SIZE) - 1) * GRID_SIZE + 1,
+				(Math.ceil((bArea[0] + bArea[2]) / GRID_SIZE) + 1) * GRID_SIZE - 1,
+				(Math.ceil((bArea[1] + bArea[3]) / GRID_SIZE) + 1) * GRID_SIZE - 1,
 			] as BoundingBox;
-			const linesArea = Array.from(area) as BoundingBox;
-			linesArea[LEFT] -= this.lineSpace;
-			linesArea[UP] -= this.lineSpace;
-			linesArea[RIGHT] += this.lineSpace;
-			linesArea[DOWN] += this.lineSpace;
 			const obj = {
 				node,
 				area,
-				linesArea,
 			};
 			this.nodesById[node.id] = obj;
 			return obj;
 		});
-		this.nodesByRight.sort((a, b) => a.area[UP] - b.area[UP]);
+		this.nodes.sort((a, b) => a.area[UP] - b.area[UP]);
 	}
 
 	updateNodes() {
@@ -292,7 +310,6 @@ export class MapLinks {
 		for (const link in this.previousLinks) {
 			if (!this.canvas.graph.links[link]) {
 				delete this.previousLinks[link];
-				delete this.linkTouchesNode[link];
 				delete this.paths[link];
 			}
 		}
@@ -352,28 +369,6 @@ export class MapLinks {
 		return nodeIds;
 	}
 
-	getTouchedNodes(linkIds: Set<string>) {
-		const nodeIds = new Set<string>();
-		for (const link of linkIds) {
-			for (const node of this.linkTouchesNode[link] ?? []) {
-				nodeIds.add(String(node));
-			}
-		}
-		return nodeIds;
-	}
-
-	getTouchedLinks(nodeIds: Set<string>) {
-		const linkIds = new Set<string>();
-		for (const linkId in this.paths) {
-			for (const node of this.linkTouchesNode[linkId] ?? []) {
-				if (nodeIds.has(node)) {
-					linkIds.add(String(linkId));
-				}
-			}
-		}
-		return linkIds;
-	}
-
 	definePathForLink(linkId: number) {
 		const link = this.canvas.graph?.links[linkId];
 		const sourceNode = link && this.canvas.graph?.getNodeById(link.origin_id);
@@ -381,7 +376,7 @@ export class MapLinks {
 		if (!link || !sourceNode || !targetNode) {
 			return;
 		}
-
+		delete this.paths[linkId];
 		const outputXYConnection = sourceNode.getOutputPos(
 			link.origin_slot
 		) as Point;
@@ -392,10 +387,8 @@ export class MapLinks {
 		const inputXY = Array.from(inputXYConnection) as Point;
 		const targetNodeInfo = this.nodesById[targetNode.id];
 
-		outputXY[0] =
-			Math.ceil(outputNodeInfo.linesArea[RIGHT] / GRID_SIZE) * GRID_SIZE;
-		inputXY[0] =
-			Math.floor(targetNodeInfo.linesArea[LEFT] / GRID_SIZE) * GRID_SIZE;
+		outputXY[0] = Math.ceil(outputNodeInfo.area[RIGHT] / GRID_SIZE) * GRID_SIZE;
+		inputXY[0] = Math.floor(targetNodeInfo.area[LEFT] / GRID_SIZE) * GRID_SIZE;
 
 		const inputBlockedByNode = this.getNodeOnPos(inputXY);
 		const outputBlockedByNode = this.getNodeOnPos(outputXY);
@@ -403,13 +396,16 @@ export class MapLinks {
 		let path = null as Point[] | null;
 
 		if (!inputBlockedByNode && !outputBlockedByNode) {
-			const { path: pathFound, touchedNodes } = this.mapLink(outputXY, inputXY);
-			this.linkTouchesNode[linkId] = Array.from(touchedNodes);
+			const pathFound = this.mapLink(
+				outputXY,
+				inputXY,
+				outputNodeInfo,
+				targetNodeInfo,
+				link
+			);
 			if (pathFound && pathFound.length > 2) {
 				path = [outputXYConnection, ...pathFound, inputXYConnection];
 			}
-		} else {
-			this.linkTouchesNode[linkId] = [];
 		}
 		if (!path) {
 			path = [outputXYConnection, outputXY, inputXY, inputXYConnection];
@@ -417,8 +413,10 @@ export class MapLinks {
 		this.paths[linkId] = {
 			path: path as Point[],
 			startNode: sourceNode,
+			sourceNode,
 			targetNode,
-			startSlot: link.origin_slot,
+			sourceSlot: link.origin_slot,
+			targetSlot: link.target_slot,
 		};
 		outputXY = [outputXY[0] + this.lineSpace, outputXY[1]];
 	}
@@ -448,7 +446,7 @@ export class MapLinks {
 				return;
 			}
 
-			const connection = pathI.startNode.outputs[pathI.startSlot];
+			const connection = pathI.startNode.outputs[pathI.sourceSlot];
 			ctx.beginPath();
 			const slotColor =
 				this.canvas.default_connection_color_byType[connection.type] ||
@@ -515,10 +513,10 @@ export class MapLinks {
 			ctx.stroke();
 			ctx.closePath();
 
-			if (this.debug) {
+			if (this.debug || true) {
 				for (let p = 0; p < path.length - 1; ++p) {
 					const pos = path[p];
-					ctx.fillStyle = "#ff0000";
+					ctx.fillStyle = "#ff00ff";
 					ctx.beginPath();
 					ctx.rect(
 						pos[0] - this.lineSpace / 4,
@@ -531,15 +529,16 @@ export class MapLinks {
 			}
 		}
 
-		if (this.debug) {
-			ctx.lineWidth = 1;
-			for (const node of this.nodesByRight) {
+		if (this.debug || true) {
+			for (const node of this.nodes) {
+				ctx.strokeStyle = "#030";
+				ctx.lineWidth = 1;
 				ctx.beginPath();
 				ctx.rect(
-					node.linesArea[0],
-					node.linesArea[1],
-					node.linesArea[2] - node.linesArea[0],
-					node.linesArea[3] - node.linesArea[1]
+					node.area[LEFT],
+					node.area[UP],
+					node.area[RIGHT] - node.area[LEFT],
+					node.area[DOWN] - node.area[UP]
 				);
 				ctx.stroke();
 			}
@@ -554,7 +553,7 @@ export class MapLinks {
 				return false;
 			});
 
-			this.nodesByRight.filter((nodeI) => {
+			this.nodes.filter((nodeI) => {
 				ctx.lineWidth = 1;
 				ctx.strokeStyle = "#000080";
 				ctx.beginPath();
@@ -567,16 +566,6 @@ export class MapLinks {
 				ctx.stroke();
 				ctx.closePath();
 
-				ctx.strokeStyle = "#0000a0";
-				ctx.beginPath();
-				ctx.rect(
-					nodeI.linesArea[0],
-					nodeI.linesArea[1],
-					nodeI.linesArea[2] - nodeI.linesArea[0],
-					nodeI.linesArea[3] - nodeI.linesArea[1]
-				);
-				ctx.stroke();
-				ctx.closePath();
 				return false;
 			});
 		}

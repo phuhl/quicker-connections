@@ -12,7 +12,6 @@ export enum Pos {
 export type Node = {
 	node: LGraphNode;
 	area: BoundingBox;
-	linesArea: BoundingBox;
 };
 
 export const LEFT = 0;

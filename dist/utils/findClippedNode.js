@@ -7,7 +7,7 @@ export const findClippedNode = (outputXY, inputXY, nodes) => {
         const node = nodes[i];
         const clipA = [-1, -1]; // outputXY.slice();
         const clipB = [-1, -1]; // inputXY.slice();
-        const area = node.linesArea;
+        const area = node.area;
         const clipped = liangBarsky({
             a: outputXY,
             b: inputXY,
