@@ -102,7 +102,7 @@ export class RecursiveSearch {
             fromKey: fakeFirstKey,
             price: 0,
         };
-        this.addCandidate(fakeFirstPos, currentPos, fakeFirstKey, 0, true);
+        this.addCandidate(fakeFirstPos, currentPos, 0, true);
         let pathFound = false;
         while (this.candidates.length > 0 &&
             this.candidatesChecked++ < MAX_ITERATIONS) {
@@ -204,7 +204,7 @@ export class RecursiveSearch {
             for (let i = 0; i < closestCandidates.length; i++) {
                 const candidate = closestCandidates[i];
                 if (i === 0) {
-                    this.addCandidate(currentPos, candidate, this.positionsVisited[currentCandidate.keyPrice].fromKey, this.positionsVisited[currentCandidate.keyPrice].price, false, {
+                    this.addCandidate(currentPos, candidate, this.positionsVisited[currentCandidate.keyPrice].price, false, {
                         group: currentCandidate.key + ";" + parentKey,
                         positionParent: parentCandidate,
                         keyPrice: currentCandidate.key,
@@ -213,7 +213,7 @@ export class RecursiveSearch {
                                 currentCandidate.positionFrom[1] === candidate[1]
                                 ? 0
                                 : CORNER_PRICE) +
-                            this.getTargetEstimate(candidate, this.positionsVisited[currentCandidate.keyPrice].fromKey),
+                            this.getTargetEstimate(candidate, currentCandidate.position),
                     });
                 }
                 else {
@@ -223,8 +223,8 @@ export class RecursiveSearch {
         }
         return false;
     }
-    getTargetEstimate(candidatePos, fromKey) {
-        const positionFrom = this.positionsVisited[fromKey].from;
+    getTargetEstimate(candidatePos, from) {
+        const positionFrom = from; // this.positionsVisited[fromKey].from;
         const distance = getMnhDist(candidatePos, this.endPos);
         const prevYSame = candidatePos[1] === positionFrom[1];
         const nextYSame = candidatePos[1] === this.endPos[1];
@@ -245,15 +245,16 @@ export class RecursiveSearch {
             }
         }
     }
-    addCandidate(currentPos, candidate, fromKey, price, fullyVisited, candidateVals = {}) {
+    addCandidate(currentPos, candidate, price, fullyVisited, candidateVals = {}) {
         const key = this.getPointKey(candidate);
+        const fromKey = this.getPointKey(currentPos);
         const gridX = Math.floor(candidate[0] / GRID_SIZE);
         const gridY = Math.floor(candidate[1] / GRID_SIZE);
         if (this.positionsVisited[key]) {
             if (fullyVisited && this.positionsVisited[key].price > price) {
                 this.positionsVisited[key] = {
                     from: currentPos,
-                    fromKey: fromKey,
+                    fromKey,
                     price,
                 };
             }
@@ -271,21 +272,21 @@ export class RecursiveSearch {
         if (fullyVisited) {
             this.positionsVisited[key] = {
                 from: currentPos,
-                fromKey: fromKey,
+                fromKey,
                 price,
             };
             this.gridSpaceUsed[gridX] = this.gridSpaceUsed[gridX] || [];
             this.gridSpaceUsed[gridX][gridY] = true;
         }
-        const targetEstimate = this.getTargetEstimate(candidate, fromKey);
-        (candidate[0] === this.endPos[0] ? 0 : CORNER_PRICE) +
-            (candidate[1] === this.endPos[1] ? 0 : CORNER_PRICE);
+        if (candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1]) {
+            console.log("here");
+        }
+        const targetEstimate = this.getTargetEstimate(candidate, currentPos);
         const candidateObj = {
             gridX,
             gridY,
             key,
             keyPrice: key,
-            keyFrom: fromKey,
             position: candidate,
             fullyVisited,
             positionFrom: currentPos,
@@ -307,7 +308,14 @@ export class RecursiveSearch {
                 this.ctx.lineWidth = 1;
                 drawLine(this.ctx, currentPos, candidate, 1);
                 writeText(this.ctx, `${price + targetEstimate}`, candidate[0] + (isTarget ? -20 : 5), candidate[1], "#ff0000");
-                writeText(this.ctx, `${this.candidatesChecked}`, candidate[0] + (isTarget ? -40 : -15), candidate[1], "#ff00ff");
+                // writeText(
+                // 	this.ctx,
+                // 	`${this.getTargetEstimateCorner(candidate, currentPos)}`,
+                // 	candidate[0] + (isTarget ? -20 : 5),
+                // 	candidate[1] + 14,
+                // 	"#ff5500"
+                // );
+                writeText(this.ctx, `${this.candidatesChecked}`, candidate[0] + (isTarget ? -30 : -15), candidate[1], "#ff00ff");
             }
             else {
                 this.ctx.strokeStyle = "#f0f000";
@@ -316,7 +324,13 @@ export class RecursiveSearch {
                 this.ctx.lineWidth = 1;
                 drawLine(this.ctx, currentPos, candidate, -1);
                 writeText(this.ctx, `${price + candidateObj.targetEstimate}`, candidate[0] + (isTarget ? -20 : 5), candidate[1] + 10, "#ff0000");
-                writeText(this.ctx, `${this.candidatesChecked}`, candidate[0] + (isTarget ? -40 : -15), candidate[1] + 10, "#ff00ff");
+                // writeText(
+                // 	this.ctx,
+                // 	`${this.candidatesChecked}`,
+                // 	candidate[0] + (isTarget ? -40 : -15),
+                // 	candidate[1] + 10,
+                // 	"#ff00ff"
+                // );
             }
         }
         return true;
@@ -350,6 +364,9 @@ export class RecursiveSearch {
         // 	this.gridSpaceUsed[removed.gridX][removed.gridY] = false;
         // }
         groupCandidates.push(candidate);
+        if (groupCandidates.length !== 1) {
+            console.log("Group candidates", groupCandidates.length);
+        }
         const blockingNodeArea = this.testPath(currentPos, furtherstInGroup);
         const horizontal = currentPos[1] === candidatePos[1];
         let blockingNodePos = null;
@@ -396,7 +413,7 @@ export class RecursiveSearch {
                     : Math.min(pathPosStart, pathEnd) - Math.max(pathPosEnd, pathStart));
             }
             pathPosStart = pathPosEnd;
-            this.addCandidate(currentPos, cOnLine.position, candidate.keyFrom, price +
+            this.addCandidate(currentPos, cOnLine.position, price +
                 getMnhDist(currentPos, cOnLine.position) +
                 pathPrice * OVERLAP_PRICE_FACTOR +
                 cornerPrice, true);
@@ -618,6 +635,7 @@ export const drawDebug = (ctx) => {
     candidatPosToDraw = [];
 };
 const writeText = (ctx, text, x, y, color) => {
+    ctx.font = `6px Verdana`;
     ctx.strokeStyle = "white";
     ctx.lineWidth = 1;
     ctx.strokeText(text, x, y);
