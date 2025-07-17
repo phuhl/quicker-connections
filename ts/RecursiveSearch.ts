@@ -6,7 +6,7 @@ const WRONG_DIR_MAX_DIST = GRID_SIZE * 60;
 const CANDIDATS_ON_LINE_OVERSHOOT = GRID_SIZE * 20;
 const MAX_DIST_NODE = GRID_SIZE * 20;
 const MAX_DIST_PATH = GRID_SIZE * 20;
-const MAX_ITERATIONS = 800;
+const MAX_ITERATIONS = 1000;
 const CORNER_PRICE = 10;
 const OVERLAP_PRICE_FACTOR = 50;
 
@@ -464,13 +464,13 @@ export class RecursiveSearch {
 				drawCross(this.ctx, candidate[0], candidate[1]);
 				this.ctx.lineWidth = 1;
 				drawLine(this.ctx, currentPos, candidate, -1);
-				writeText(
-					this.ctx,
-					`${price + candidateObj.targetEstimate}`,
-					candidate[0] + (isTarget ? -20 : 5),
-					candidate[1] + 10,
-					"#ff0000"
-				);
+				// writeText(
+				// 	this.ctx,
+				// 	`${price + candidateObj.targetEstimate}`,
+				// 	candidate[0] + (isTarget ? -20 : 5),
+				// 	candidate[1] + 10,
+				// 	"#ff0000"
+				// );
 				// writeText(
 				// 	this.ctx,
 				// 	`${this.candidatesChecked}`,
