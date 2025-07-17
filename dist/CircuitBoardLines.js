@@ -60,12 +60,12 @@ export class CircuitBoardLines {
         }, 0);
     }
     recalcMapLinksCheck(ctx) {
-        if (this.mapLinks) {
-            if (this.mapLinks.lastCalcTime > 100) {
-                this.recalcMapLinksTimeout(ctx);
-                return false;
-            }
-        }
+        // if (this.mapLinks) {
+        // 	if (this.mapLinks.lastCalcTime > 100) {
+        // 		this.recalcMapLinksTimeout(ctx);
+        // 		return false;
+        // 	}
+        // }
         this.recalcMapLinks(ctx);
         return true;
     }

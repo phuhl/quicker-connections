@@ -53,7 +53,9 @@ export class MapLinks {
             (this.paths[path].targetNode.id !== target.node.id ||
                 this.paths[path].targetSlot !== link.target_slot))
             .map((key) => this.paths[key].path);
-        const search = new RecursiveSearch(outputXY, inputXY, this.nodes, paths, this.ctx);
+        const search = new RecursiveSearch(outputXY, inputXY, this.nodes, paths
+        //			this.ctx
+        );
         try {
             return search.run() ?? [outputXY, inputXY];
         }
@@ -63,62 +65,6 @@ export class MapLinks {
         finally {
             this.ctx.restore();
         }
-        // const touchedNodes = new Set<string>();
-        // for (const node of this.nodesByRight) {
-        // 	for (let i = 0; i < path.length - 1; i++) {
-        // 		const pathPoint1 = path[i],
-        // 			pathPoint2 = path[i + 1];
-        // 		const [left, up, right, down] = node.linesArea;
-        // 		const horizontal = pathPoint1[1] === pathPoint2[1];
-        // 		if (horizontal) {
-        // 			const pathStart =
-        // 				pathPoint1[0] < pathPoint2[0] ? pathPoint1 : pathPoint2;
-        // 			const pathEnd =
-        // 				pathPoint1[0] < pathPoint2[0] ? pathPoint2 : pathPoint1;
-        // 			if (pathEnd[0] >= left && pathStart[0] <= right) {
-        // 				if (pathStart[1] <= up && pathStart[1] > up - this.lineSpace) {
-        // 					if (pathStart[1] > up - this.lineSpace) {
-        // 						node.linesArea[UP] -= this.lineSpace;
-        // 					}
-        // 					if (pathStart[1] > up - this.nodeNeighborDist) {
-        // 						touchedNodes.add(String(node.node.id));
-        // 					}
-        // 				}
-        // 				if (pathEnd[1] >= down) {
-        // 					if (pathEnd[1] < down + this.lineSpace) {
-        // 						node.linesArea[DOWN] += this.lineSpace;
-        // 					}
-        // 					if (pathEnd[1] < down + this.nodeNeighborDist) {
-        // 						touchedNodes.add(String(node.node.id));
-        // 					}
-        // 				}
-        // 			}
-        // 		} else {
-        // 			const pathStart =
-        // 				pathPoint1[1] < pathPoint2[1] ? pathPoint1 : pathPoint2;
-        // 			const pathEnd =
-        // 				pathPoint1[1] < pathPoint2[1] ? pathPoint2 : pathPoint1;
-        // 			if (pathEnd[1] >= up && pathStart[1] <= down) {
-        // 				if (pathStart[0] <= left) {
-        // 					if (pathStart[0] > left - this.lineSpace) {
-        // 						node.linesArea[LEFT] -= this.lineSpace;
-        // 					}
-        // 					if (pathStart[0] > left - this.nodeNeighborDist) {
-        // 						touchedNodes.add(String(node.node.id));
-        // 					}
-        // 				}
-        // 				if (pathEnd[0] >= right) {
-        // 					if (pathEnd[0] < right + this.lineSpace) {
-        // 						node.linesArea[RIGHT] += this.lineSpace;
-        // 					}
-        // 					if (pathEnd[0] < right + this.nodeNeighborDist) {
-        // 						touchedNodes.add(String(node.node.id));
-        // 					}
-        // 				}
-        // 			}
-        // 		}
-        // 	}
-        // }
     }
     getNodeOnPos(xy) {
         for (let i = 0; i < this.nodes.length; ++i) {
@@ -153,19 +99,24 @@ export class MapLinks {
         // - check if links have changed, if so, add to linkIdsChanged
         // - get all links from changed nodes
         // - get all nodes from changed links, also using linkTouchesNode
-        const linkIdsFromNodes = this.getLinksFromNodes(changedNodes);
-        const nodesToBeUpdated = this.getNodesFromLinks(changedLinks).union(this.getNodesFromLinks(linkIdsFromNodes));
-        for (const { node } of this.nodes) {
-            if (!node.outputs || !nodesToBeUpdated.has(String(node.id))) {
-                continue;
-            }
-            for (const input of node.inputs) {
-                if (!input.link) {
-                    continue;
-                }
-                this.definePathForLink(input.link);
-            }
+        const linkIdsFromNodes = this.getLinksFromNodes(changedNodes).union(changedLinks);
+        // const nodesToBeUpdated = this.getNodesFromLinks(changedLinks).union(
+        // 	this.getNodesFromLinks(linkIdsFromNodes)
+        // );
+        for (const link of linkIdsFromNodes) {
+            this.definePathForLink(link);
         }
+        // for (const { node } of this.nodes) {
+        // 	if (!node.outputs || !nodesToBeUpdated.has(String(node.id))) {
+        // 		continue;
+        // 	}
+        // 	for (const input of node.inputs) {
+        // 		if (!input.link) {
+        // 			continue;
+        // 		}
+        // 		this.definePathForLink(input.link);
+        // 	}
+        // }
         this.lastCalculate = new Date().getTime();
         this.lastCalcTime = this.lastCalculate - startCalcTime;
         if (this.debug)
@@ -289,10 +240,14 @@ export class MapLinks {
         const link = this.canvas.graph?.links[linkId];
         const sourceNode = link && this.canvas.graph?.getNodeById(link.origin_id);
         const targetNode = link && this.canvas.graph?.getNodeById(link.target_id);
+        delete this.paths[linkId];
         if (!link || !sourceNode || !targetNode) {
             return;
         }
-        delete this.paths[linkId];
+        const hasOutput = sourceNode.outputs?.some((l) => l.links?.some((l) => String(l) === linkId));
+        if (!hasOutput) {
+            return;
+        }
         const outputXYConnection = sourceNode.getOutputPos(link.origin_slot);
         const outputNodeInfo = this.nodesById[sourceNode.id];
         let outputXY = Array.from(outputXYConnection);
@@ -380,7 +335,7 @@ export class MapLinks {
             }
             ctx.stroke();
             ctx.closePath();
-            if (this.debug || true) {
+            if (this.debug) {
                 for (let p = 0; p < path.length - 1; ++p) {
                     const pos = path[p];
                     ctx.fillStyle = "#ff00ff";
@@ -390,7 +345,7 @@ export class MapLinks {
                 }
             }
         }
-        if (this.debug || true) {
+        if (this.debug) {
             for (const node of this.nodes) {
                 ctx.strokeStyle = "#030";
                 ctx.lineWidth = 1;

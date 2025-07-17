@@ -1,12 +1,4 @@
-import {
-	BoundingBox,
-	DOWN,
-	LEFT,
-	Node,
-	Point,
-	RIGHT,
-	UP,
-} from "./utils/types.js";
+import { LEFT, Node, Point, RIGHT, UP } from "./utils/types.js";
 import { findClippedNode } from "./utils/findClippedNode.js";
 
 export const GRID_SIZE = 5;
@@ -14,7 +6,7 @@ const WRONG_DIR_MAX_DIST = GRID_SIZE * 60;
 const CANDIDATS_ON_LINE_OVERSHOOT = GRID_SIZE * 20;
 const MAX_DIST_NODE = GRID_SIZE * 20;
 const MAX_DIST_PATH = GRID_SIZE * 20;
-const MAX_ITERATIONS = 10;
+const MAX_ITERATIONS = 800;
 const CORNER_PRICE = 10;
 const OVERLAP_PRICE_FACTOR = 50;
 
@@ -22,11 +14,23 @@ const getMnhDist = (a: Point, b: Point) => {
 	return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
 };
 
-const filterInPlace = <T>(list: T[], filter: (t: T) => boolean) => {
+const sortByClosest = (
+	points: Point[],
+	target: Point,
+	dirDimension: number
+) => {
+	return points.sort((a, b) => {
+		const distA = Math.abs(a[dirDimension] - target[dirDimension]);
+		const distB = Math.abs(b[dirDimension] - target[dirDimension]);
+		return distA - distB;
+	});
+};
+
+const filterInPlace = <T>(list: T[], filter: (t: T, i: number) => boolean) => {
 	let i: number, j: number;
 
 	for (i = 0, j = 0; i < list.length; ++i) {
-		if (filter(list[i])) {
+		if (filter(list[i], i)) {
 			list[j] = list[i];
 			++j;
 		}
@@ -73,8 +77,6 @@ type Candidate = {
 	gridY: number;
 };
 
-type PrecheckedCandidate = {};
-
 let candidatPosToDraw = [] as Point[];
 
 export class RecursiveSearch {
@@ -90,7 +92,21 @@ export class RecursiveSearch {
 	>;
 
 	candidates = [] as Candidate[];
-
+	precheckedCandidates = {} as Record<
+		string,
+		{
+			"0"?: {
+				// horizontal
+				"-1"?: Point; // left
+				"+1"?: Point; // right
+			};
+			"1"?: {
+				// vertical
+				"-1"?: Point; // up
+				"+1"?: Point; // down
+			};
+		}
+	>;
 	targetFoundPrice = Number.MAX_SAFE_INTEGER;
 
 	pathsH: Point[][] = [];
@@ -103,7 +119,7 @@ export class RecursiveSearch {
 		paths: Point[][],
 		private ctx: CanvasRenderingContext2D | null = null
 	) {
-		console.log("search");
+		//		console.log("search");
 		for (const path of paths) {
 			if (path.length <= 2) {
 				continue;
@@ -148,16 +164,16 @@ export class RecursiveSearch {
 			this.candidatesChecked++ < MAX_ITERATIONS
 		) {
 			const candidate = this.getBestCandidate();
-			this.removedCandidates.push(candidate);
 			pathFound = this.findCandidates(candidate) || pathFound;
 
 			if (pathFound) {
-				filterInPlace(
+				const removed = filterInPlaceReturnFiltered(
 					this.candidates,
 					(p) =>
 						this.positionsVisited[p.keyPrice].price + p.targetEstimate <
 						this.targetFoundPrice
 				);
+				this.removedCandidates.push(...removed);
 			}
 		}
 
@@ -169,6 +185,14 @@ export class RecursiveSearch {
 				this.endPos,
 			];
 		}
+		console.log(
+			"iterations",
+			this.candidatesChecked,
+			", open candidats",
+			this.candidates.length,
+			", removed candidats",
+			this.removedCandidates.length
+		);
 		return pathFound || null;
 	}
 
@@ -260,6 +284,10 @@ export class RecursiveSearch {
 
 		for (const parentCandidate of candidates) {
 			const parentKey = this.getPointKey(parentCandidate);
+			const dirDimension = currentPos[0] === parentCandidate[0] ? 1 : 0;
+			const dir =
+				currentPos[dirDimension] < parentCandidate[dirDimension] ? 1 : -1;
+
 			const parentEstimate =
 				getMnhDist(currentPos, parentCandidate) +
 				getMnhDist(parentCandidate, this.endPos) +
@@ -272,30 +300,43 @@ export class RecursiveSearch {
 				continue;
 			}
 
-			const candidates = this.findCandidatesOnLine(currentPos, parentCandidate);
-			for (const candidate of candidates) {
-				this.addCandidate(
-					currentPos,
-					candidate,
-					this.positionsVisited[currentCandidate.keyPrice].fromKey,
-					this.positionsVisited[currentCandidate.keyPrice].price,
-					false,
-					{
-						group: currentCandidate.key + ";" + parentKey,
-						positionParent: parentCandidate,
-						keyPrice: currentCandidate.key,
-						targetEstimate:
-							getMnhDist(currentPos, candidate) +
-							(currentCandidate.positionFrom[0] === candidate[0] ||
-							currentCandidate.positionFrom[1] === candidate[1]
-								? 0
-								: CORNER_PRICE) +
-							this.getTargetEstimate(
-								candidate,
-								this.positionsVisited[currentCandidate.keyPrice].fromKey
-							),
-					}
-				);
+			const closestCandidates = this.findCandidatesOnLine(
+				currentPos,
+				parentCandidate
+			);
+			for (let i = 0; i < closestCandidates.length; i++) {
+				const candidate = closestCandidates[i];
+				if (i === 0) {
+					this.addCandidate(
+						currentPos,
+						candidate,
+						this.positionsVisited[currentCandidate.keyPrice].fromKey,
+						this.positionsVisited[currentCandidate.keyPrice].price,
+						false,
+						{
+							group: currentCandidate.key + ";" + parentKey,
+							positionParent: parentCandidate,
+							keyPrice: currentCandidate.key,
+							targetEstimate:
+								getMnhDist(currentPos, candidate) +
+								(currentCandidate.positionFrom[0] === candidate[0] ||
+								currentCandidate.positionFrom[1] === candidate[1]
+									? 0
+									: CORNER_PRICE) +
+								this.getTargetEstimate(
+									candidate,
+									this.positionsVisited[currentCandidate.keyPrice].fromKey
+								),
+						}
+					);
+				} else {
+					this.addPreCheckedCandidate(
+						closestCandidates[i - 1],
+						closestCandidates[i],
+						dirDimension,
+						dir
+					);
+				}
 			}
 		}
 
@@ -390,67 +431,80 @@ export class RecursiveSearch {
 			const currentlyCheaper = price + targetEstimate < this.highstPriceYet;
 			const isTarget =
 				candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1];
-			this.ctx.beginPath();
 			if (fullyVisited) {
 				this.ctx.strokeStyle = "#ff0000";
 				this.ctx.lineWidth = 2;
-				this.ctx.moveTo(candidate[0] - 5, candidate[1]);
-				this.ctx.lineTo(candidate[0] + 5, candidate[1]);
-				this.ctx.moveTo(candidate[0], candidate[1] - 5);
-				this.ctx.lineTo(candidate[0], candidate[1] + 5);
+				drawCross(this.ctx, candidate[0], candidate[1]);
 				if (currentlyCheaper) {
 					this.ctx.fillStyle = "#00ff00";
 					this.ctx.fillRect(candidate[0] - 7, candidate[1] - 7, 14, 14);
 				}
-
-				this.ctx.beginPath();
 				this.ctx.lineWidth = 1;
-				this.ctx.moveTo(currentPos[0] - 1, currentPos[1] - 1);
-				this.ctx.lineTo(candidate[0] - 1, candidate[1] - 1);
-				this.ctx.stroke();
-
-				const text = `${price + targetEstimate}`,
-					x = candidate[0] + (isTarget ? -20 : 5),
-					y = candidate[1];
-				this.ctx.strokeStyle = "white";
-				this.ctx.lineWidth = 1;
-				this.ctx.strokeText(text, x, y);
-				this.ctx.fillStyle = "#ff0000";
-				this.ctx.fillText(text, x, y);
+				drawLine(this.ctx, currentPos, candidate, 1);
+				writeText(
+					this.ctx,
+					`${price + targetEstimate}`,
+					candidate[0] + (isTarget ? -20 : 5),
+					candidate[1],
+					"#ff0000"
+				);
+				writeText(
+					this.ctx,
+					`${this.candidatesChecked}`,
+					candidate[0] + (isTarget ? -40 : -15),
+					candidate[1],
+					"#ff00ff"
+				);
 			} else {
 				this.ctx.strokeStyle = "#f0f000";
 				this.ctx.lineWidth = 2;
-				this.ctx.moveTo(candidate[0] - 5, candidate[1]);
-				this.ctx.lineTo(candidate[0] + 5, candidate[1]);
-				this.ctx.moveTo(candidate[0], candidate[1] - 5);
-				this.ctx.lineTo(candidate[0], candidate[1] + 5);
-				this.ctx.stroke();
-				this.ctx.beginPath();
+				drawCross(this.ctx, candidate[0], candidate[1]);
 				this.ctx.lineWidth = 1;
-				this.ctx.moveTo(currentPos[0] + 1, currentPos[1] + 1);
-				this.ctx.lineTo(candidate[0] + 1, candidate[1] + 1);
-				this.ctx.stroke();
-
-				const text = `${price + candidateObj.targetEstimate}`,
-					x = candidate[0] + (isTarget ? -20 : 5),
-					y = candidate[1] + 10;
-				this.ctx.strokeStyle = "white";
-				this.ctx.lineWidth = 1;
-				this.ctx.strokeText(text, x, y);
-				this.ctx.fillStyle = "#ff0000";
-				this.ctx.fillText(text, x, y);
+				drawLine(this.ctx, currentPos, candidate, -1);
+				writeText(
+					this.ctx,
+					`${price + candidateObj.targetEstimate}`,
+					candidate[0] + (isTarget ? -20 : 5),
+					candidate[1] + 10,
+					"#ff0000"
+				);
+				writeText(
+					this.ctx,
+					`${this.candidatesChecked}`,
+					candidate[0] + (isTarget ? -40 : -15),
+					candidate[1] + 10,
+					"#ff00ff"
+				);
 			}
-			const text = `${this.candidatesChecked}`,
-				x = candidate[0] - 10,
-				y = candidate[1];
-			this.ctx.strokeStyle = "white";
-			this.ctx.lineWidth = 1;
-			this.ctx.strokeText(text, x, y);
-			this.ctx.fillStyle = "#ff00ff";
-			this.ctx.fillText(text, x, y);
 		}
 
 		return true;
+	}
+
+	addPreCheckedCandidate(
+		previousPos: Point,
+		candidate: Point,
+		dirDimension: 0 | 1,
+		dir: number
+	) {
+		const pointKey = this.getPointKey(previousPos);
+		if (this.precheckedCandidates[pointKey]?.[dirDimension]?.[dir]) {
+			throw new Error("Prechecked candidate already exists");
+		}
+		this.precheckedCandidates[pointKey] = {
+			...this.precheckedCandidates[pointKey],
+			[dirDimension]: {
+				...this.precheckedCandidates[pointKey]?.[dirDimension],
+				[dir]: candidate,
+			},
+		};
+		if (this.ctx) {
+			this.ctx.strokeStyle = "#f0f0f0";
+			this.ctx.lineWidth = 1;
+			drawCross(this.ctx, candidate[0], candidate[1]);
+			this.ctx.lineWidth = 1;
+			drawLine(this.ctx, previousPos, candidate, 0);
+		}
 	}
 
 	checkCandidate(
@@ -556,30 +610,64 @@ export class RecursiveSearch {
 		}
 	}
 
-	constructPath(currentPos: Point) {
-		const path = [this.endPos];
-		let current = currentPos;
-		while (current[0] !== this.startPos[0] || current[1] !== this.startPos[1]) {
-			current = this.positionsVisited[this.getPointKey(current)].from;
-			path.unshift(current);
-		}
-		return path;
-	}
-
-	getPointKey(point: Point) {
-		return point[0] + point[1] * 1000000;
-		//		return `${point[0]},${point[1]}`;
-	}
-
 	findCandidatesOnLine(from: Point, to: Point, skipOvershoot = false) {
 		const candidates = [to];
 		const horizontal = from[1] === to[1];
 		const directionDim = horizontal ? 0 : 1;
+		const dir = Math.sign(to[directionDim] - from[directionDim]);
+
+		if (
+			this.precheckedCandidates[this.getPointKey(from)]?.[directionDim]?.[dir]
+		) {
+			return [
+				this.precheckedCandidates[this.getPointKey(from)]?.[directionDim]?.[
+					dir
+				],
+			];
+		}
 		const dist =
 			Math.abs(to[directionDim] - from[directionDim]) +
 			(skipOvershoot ? 0 : CANDIDATS_ON_LINE_OVERSHOOT);
-		const dir = Math.sign(to[directionDim] - from[directionDim]);
 
+		this.findCandidatesByNodes(
+			candidates,
+			from,
+			horizontal,
+			directionDim,
+			dir,
+			dist
+		);
+		this.findCandidatesByPathCrossings(
+			candidates,
+			from,
+			horizontal,
+			directionDim,
+			dir,
+			dist
+		);
+		sortByClosest(candidates, from, directionDim);
+		let lastX = null as null | number,
+			lastY = null as null | number;
+		filterInPlace(candidates, (c) => {
+			if (c[0] === lastX || c[1] === lastY) {
+				return false;
+			}
+			lastX = c[0];
+			lastY = c[1];
+			return true;
+		});
+
+		return candidates;
+	}
+
+	findCandidatesByNodes(
+		candidates: Point[],
+		from: Point,
+		horizontal: boolean,
+		directionDim: 0 | 1,
+		dir: number,
+		dist: number
+	) {
 		for (const node of this.nodes) {
 			const [left, up, right, down] = node.area;
 
@@ -608,44 +696,75 @@ export class RecursiveSearch {
 				candidates.push([p[0], p[1]] as Point);
 			}
 		}
+	}
 
-		const paths = horizontal ? this.pathsV : this.pathsH;
-		for (const path of paths) {
-			const pathPerpendicularDist =
-				from[1 - directionDim] >= path[0][1 - directionDim] &&
-				from[1 - directionDim] <= path[1][1 - directionDim]
-					? 0
-					: Math.min(
-							Math.abs(path[0][1 - directionDim] - from[1 - directionDim]),
-							Math.abs(path[1][1 - directionDim] - from[1 - directionDim])
-					  );
-			if (pathPerpendicularDist > MAX_DIST_PATH) {
-				continue;
-			}
-			const points = horizontal
-				? [
-						[(Math.floor(path[0][0] / GRID_SIZE) - 1) * GRID_SIZE, from[1]],
-						[(Math.ceil(path[1][0] / GRID_SIZE) + 1) * GRID_SIZE, from[1]],
-				  ]
-				: [
-						[from[0], (Math.floor(path[0][1] / GRID_SIZE) - 1) * GRID_SIZE],
-						[from[0], (Math.ceil(path[1][1] / GRID_SIZE) + 1) * GRID_SIZE],
-				  ];
-			for (const p of points) {
-				const pathDist = Math.abs(from[directionDim] - p[directionDim]);
-				const dirP = Math.sign(p[directionDim] - from[directionDim]);
-				if (dirP !== dir || pathDist > dist || pathDist === 0) {
-					continue;
-				}
-				candidates.push(p as Point);
-			}
+	pathsCrossingsHAt: Record<number, Point[][]> = {};
+	pathsCrossingsVAt: Record<number, Point[][]> = {};
+	findCandidatesByPathCrossings(
+		candidates: Point[],
+		from: Point,
+		horizontal: boolean,
+		directionDim: 0 | 1,
+		dir: number,
+		dist: number
+	) {
+		const directionDimOpposite = 1 - directionDim;
+		const pos = from[directionDimOpposite];
+		const cachedPathList = horizontal
+			? this.pathsCrossingsVAt
+			: this.pathsCrossingsHAt;
+		const cachedPathListFound = Boolean(cachedPathList[pos]);
+		const paths = cachedPathListFound
+			? cachedPathList[pos]
+			: horizontal
+			? this.pathsV
+			: this.pathsH;
+
+		if (!cachedPathListFound) {
+			cachedPathList[pos] = [];
 		}
 
-		return candidates;
+		for (const path of paths) {
+			if (!cachedPathListFound) {
+				const pathPerpendicularDist =
+					from[directionDimOpposite] >= path[0][directionDimOpposite] &&
+					from[directionDimOpposite] <= path[1][directionDimOpposite]
+						? 0
+						: Math.min(
+								Math.abs(
+									path[0][directionDimOpposite] - from[directionDimOpposite]
+								),
+								Math.abs(
+									path[1][directionDimOpposite] - from[directionDimOpposite]
+								)
+						  );
+				if (pathPerpendicularDist > MAX_DIST_PATH) {
+					continue;
+				}
+				cachedPathList[pos].push(path);
+			}
+
+			const p1 = horizontal
+				? [(Math.floor(path[0][0] / GRID_SIZE) - 1) * GRID_SIZE, from[1]]
+				: [from[0], (Math.floor(path[0][1] / GRID_SIZE) - 1) * GRID_SIZE];
+			const p2 = horizontal
+				? [(Math.ceil(path[1][0] / GRID_SIZE) + 1) * GRID_SIZE, from[1]]
+				: [from[0], (Math.ceil(path[1][1] / GRID_SIZE) + 1) * GRID_SIZE];
+			let pathDist = Math.abs(from[directionDim] - p1[directionDim]);
+			let dirP = Math.sign(p1[directionDim] - from[directionDim]);
+			if (dirP === dir && pathDist <= dist && pathDist !== 0) {
+				candidates.push(p1 as Point);
+			}
+			pathDist = Math.abs(from[directionDim] - p2[directionDim]);
+			dirP = Math.sign(p2[directionDim] - from[directionDim]);
+			if (dirP === dir && pathDist <= dist && pathDist !== 0) {
+				candidates.push(p2 as Point);
+			}
+		}
 	}
 
 	testPath(from: Point, to: Point) {
-		console.log("test");
+		//		console.log("test");
 		const horizontal = from[1] === to[1];
 		const directionDim = horizontal ? 0 : 1;
 
@@ -667,10 +786,12 @@ export class RecursiveSearch {
 		return null;
 	}
 
+	pathsOverlapsHAt: Record<number, Point[][]> = {};
+	pathsOverlapsVAt: Record<number, Point[][]> = {};
+
 	getPathPrice(from: Point, to: Point) {
 		const horizontal = from[1] === to[1];
 		const directionDim = horizontal ? 0 : 1;
-		const paths = horizontal ? this.pathsH : this.pathsV;
 
 		const pathStart =
 			from[directionDim] < to[directionDim]
@@ -684,12 +805,28 @@ export class RecursiveSearch {
 
 		const blockedSections = [] as Point[];
 
+		const cachedPathList = horizontal
+			? this.pathsOverlapsHAt
+			: this.pathsOverlapsVAt;
+		const cachedPathListFound = Boolean(cachedPathList[pathPosition]);
+		if (!cachedPathListFound) {
+			cachedPathList[pathPosition] = [];
+		}
+		const paths = cachedPathListFound
+			? cachedPathList[pathPosition]
+			: horizontal
+			? this.pathsH
+			: this.pathsV;
 		for (const otherPath of paths) {
-			if (
-				pathPosition > otherPath[0][1 - directionDim] + GRID_SIZE / 2 ||
-				pathPosition < otherPath[0][1 - directionDim] - GRID_SIZE / 2
-			) {
-				continue;
+			if (!cachedPathListFound) {
+				if (
+					pathPosition > otherPath[0][1 - directionDim] + GRID_SIZE / 2 ||
+					pathPosition < otherPath[0][1 - directionDim] - GRID_SIZE / 2
+				) {
+					continue;
+				} else {
+					cachedPathList[pathPosition].push(otherPath);
+				}
 			}
 			const otherPathStart = otherPath[0][directionDim];
 			const otherPathEnd = otherPath[1][directionDim];
@@ -701,6 +838,42 @@ export class RecursiveSearch {
 			}
 		}
 		return blockedSections;
+	}
+
+	getPointKey(point: Point) {
+		if (this.ctx) {
+			return `${point[0]},${point[1]}` as unknown as number;
+		}
+		return point[0] + point[1] * 1000000;
+	}
+
+	constructPath(currentPos: Point) {
+		const path = [this.endPos];
+		let current = currentPos;
+		while (current[0] !== this.startPos[0] || current[1] !== this.startPos[1]) {
+			current = this.positionsVisited[this.getPointKey(current)].from;
+			path.unshift(current);
+		}
+
+		// remove points that don't do anything (i.e. are in a straight line)
+		let j = 1;
+		for (let i = 1; i < path.length - 1; ++i) {
+			if (
+				!(
+					(path[i][0] === path[i - 1][0] && path[i][0] === path[i + 1][0]) ||
+					(path[i][1] === path[i - 1][1] && path[i][1] === path[i + 1][1])
+				)
+			) {
+				path[j++] = path[i];
+			}
+		}
+		path[j++] = path[path.length - 1];
+
+		while (j < path.length) {
+			path.pop();
+		}
+
+		return path;
 	}
 }
 
@@ -732,4 +905,46 @@ export const drawDebug = (ctx: CanvasRenderingContext2D) => {
 	);
 	ctx.stroke();
 	candidatPosToDraw = [];
+};
+
+const writeText = (
+	ctx: CanvasRenderingContext2D,
+	text: string,
+	x: number,
+	y: number,
+	color: string
+) => {
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = 1;
+	ctx.strokeText(text, x, y);
+	ctx.fillStyle = color;
+	ctx.fillText(text, x, y);
+};
+
+const drawCross = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+	ctx.beginPath();
+	ctx.moveTo(x - 5, y);
+	ctx.lineTo(x + 5, y);
+	ctx.moveTo(x, y - 5);
+	ctx.lineTo(x, y + 5);
+	ctx.stroke();
+};
+
+const drawSquare = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+	ctx.beginPath();
+	ctx.rect(x - 5, y - 5, 10, 10);
+	ctx.stroke();
+};
+
+const drawLine = (
+	ctx: CanvasRenderingContext2D,
+	from: Point,
+	to: Point,
+	offset: number
+) => {
+	ctx.beginPath();
+	ctx.moveTo(from[0] - offset, from[1] - offset);
+	ctx.lineTo(to[0] - offset, to[1] - offset);
+
+	ctx.stroke();
 };
