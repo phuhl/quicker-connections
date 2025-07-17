@@ -122,7 +122,14 @@ export class RecursiveSearch {
                 this.endPos,
             ];
         }
-        console.log("iterations", this.candidatesChecked, ", open candidats", this.candidates.length, ", removed candidats", this.removedCandidates.length);
+        // console.log(
+        // 	"iterations",
+        // 	this.candidatesChecked,
+        // 	", open candidats",
+        // 	this.candidates.length,
+        // 	", removed candidats",
+        // 	this.removedCandidates.length
+        // );
         return pathFound || null;
     }
     removedCandidates = [];
@@ -278,9 +285,6 @@ export class RecursiveSearch {
             this.gridSpaceUsed[gridX] = this.gridSpaceUsed[gridX] || [];
             this.gridSpaceUsed[gridX][gridY] = true;
         }
-        if (candidate[0] === this.endPos[0] && candidate[1] === this.endPos[1]) {
-            console.log("here");
-        }
         const targetEstimate = this.getTargetEstimate(candidate, currentPos);
         const candidateObj = {
             gridX,
@@ -370,9 +374,6 @@ export class RecursiveSearch {
         // 	this.gridSpaceUsed[removed.gridX][removed.gridY] = false;
         // }
         groupCandidates.push(candidate);
-        if (groupCandidates.length !== 1) {
-            console.log("Group candidates", groupCandidates.length);
-        }
         const blockingNodeArea = this.testPath(currentPos, furtherstInGroup);
         const horizontal = currentPos[1] === candidatePos[1];
         let blockingNodePos = null;
