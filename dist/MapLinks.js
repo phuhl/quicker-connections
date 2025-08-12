@@ -112,10 +112,11 @@ export class MapLinks {
                     this.pathsToBeChecked.add(id);
                     this.definePathForLink(id, true);
                 }
-                // worse performance (as we take longer to process all links),
-                // but better accuracy, as we recalculate all paths that might
-                // be suboptimal.
-                for (const id in this.paths) {
+                // find all links within the area of the changed links and
+                // recalculate them to fix missing links and improve suboptimal paths
+                const bbox = this.getBoundingBoxArroundLinks(linkIdsFromNodes);
+                const pathsInArea = this.getLinksInArea(bbox);
+                for (const id in pathsInArea) {
                     this.pathsToBeChecked.add(id);
                 }
                 this.pathsToBeChecked =
@@ -140,6 +141,39 @@ export class MapLinks {
         }
         if (this.debug)
             console.log("last calc time", this.lastCalcTime); // eslint-disable-line no-console
+    }
+    getBoundingBoxArroundLinks(linkIds) {
+        const boundingBox = [
+            Number.MAX_SAFE_INTEGER,
+            Number.MAX_SAFE_INTEGER,
+            Number.MIN_SAFE_INTEGER,
+            Number.MIN_SAFE_INTEGER,
+        ];
+        for (const linkId of linkIds) {
+            const path = this.paths[linkId];
+            if (!path) {
+                continue;
+            }
+            const area = path.bbox;
+            boundingBox[LEFT] = Math.min(area[LEFT], boundingBox[LEFT]);
+            boundingBox[UP] = Math.min(area[UP], boundingBox[UP]);
+            boundingBox[RIGHT] = Math.max(area[RIGHT], boundingBox[RIGHT]);
+            boundingBox[DOWN] = Math.max(area[DOWN], boundingBox[DOWN]);
+        }
+        return boundingBox;
+    }
+    getLinksInArea(area) {
+        const linksInArea = new Set();
+        for (const path in this.paths) {
+            const pathArea = this.paths[path].bbox;
+            if (pathArea[LEFT] < area[RIGHT] &&
+                pathArea[RIGHT] > area[LEFT] &&
+                pathArea[UP] < area[DOWN] &&
+                pathArea[DOWN] > area[UP]) {
+                linksInArea.add(path);
+            }
+        }
+        return linksInArea;
     }
     parseNodes(nodes) {
         this.nodesById = {};
@@ -300,6 +334,12 @@ export class MapLinks {
         }
         this.paths[linkId] = {
             path: path,
+            bbox: [
+                Math.min(outputXY[0], inputXY[0]),
+                Math.min(outputXY[1], inputXY[1]),
+                Math.max(outputXY[0], inputXY[0]),
+                Math.max(outputXY[1], inputXY[1]),
+            ],
             startNode: sourceNode,
             sourceNode,
             targetNode,
