@@ -19,5 +19,6 @@
 	"nodemonConfig": {
 		"legacyWatch": true,
 		"ext": "ts js json"
-	}
+	},
+	"version": "0.1.0"
 }
