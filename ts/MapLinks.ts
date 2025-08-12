@@ -197,9 +197,16 @@ export class MapLinks {
 				(Math.ceil((bArea[0] + bArea[2]) / GRID_SIZE) + 1) * GRID_SIZE - 1,
 				(Math.ceil((bArea[1] + bArea[3]) / GRID_SIZE) + 1) * GRID_SIZE - 1,
 			] as BoundingBox;
+			const actualArea = [
+				bArea[0],
+				bArea[1],
+				bArea[0] + bArea[2],
+				bArea[1] + bArea[3],
+			] as BoundingBox;
 			const obj = {
 				node,
 				area,
+				actualArea,
 			};
 			this.nodesById[node.id] = obj;
 			return obj;
@@ -398,8 +405,6 @@ export class MapLinks {
 			const pathIsActive =
 				currentNodeIds[pathI.startNode.id] ||
 				currentNodeIds[pathI.targetNode.id];
-			const sourceIsActive = currentNodeIds[pathI.startNode.id],
-				targetIsActive = !sourceIsActive;
 
 			if (path.length <= 1) {
 				return;
@@ -410,15 +415,12 @@ export class MapLinks {
 			let slotColor =
 				this.canvas.default_connection_color_byType[connection.type] ||
 				this.canvas.default_connection_color.input_on;
-			let textColor = "white";
 
 			if (pathIsActive) {
 				const hsl = RGBToHSL(...hexToRGB(slotColor.toString()));
 				hsl[2] = 85;
 				hsl[1] = Math.min(hsl[1] + 0.2, 100);
 				slotColor = rgbToHex(...HSLToRGB(...hsl));
-				hsl[2] = 20;
-				textColor = rgbToHex(...HSLToRGB(...hsl));
 			}
 			ctx.strokeStyle = slotColor;
 			ctx.lineWidth = 3;
@@ -474,36 +476,6 @@ export class MapLinks {
 			ctx.stroke();
 			ctx.closePath();
 
-			if (pathIsActive) {
-				const arcR = 7,
-					dist = 25;
-				const pathEnd = path[path.length - 1];
-				ctx.fillStyle = ctx.strokeStyle;
-				ctx.beginPath();
-				ctx.arc(path[0][0] + dist, path[0][1], arcR, 0, 2 * Math.PI);
-				ctx.fill();
-				ctx.beginPath();
-				ctx.arc(pathEnd[0] - dist, pathEnd[1], arcR, 0, 2 * Math.PI);
-				ctx.fill();
-				ctx.fillStyle = textColor;
-				ctx.font = "10px Arial";
-				ctx.textAlign = "center";
-				ctx.fillText(
-					(
-						(sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1
-					).toString(),
-					path[0][0] + dist,
-					path[0][1] + 4
-				);
-				ctx.fillText(
-					(
-						(sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1
-					).toString(),
-					pathEnd[0] - dist,
-					pathEnd[1] + 4
-				);
-			}
-
 			if (this.debug) {
 				for (let p = 0; p < path.length - 1; ++p) {
 					const pos = path[p];
@@ -518,6 +490,75 @@ export class MapLinks {
 					ctx.fill();
 				}
 			}
+		}
+		for (const key in this.paths) {
+			const pathI = this.paths[key];
+			const path = pathI.path;
+			const pathIsActive =
+				currentNodeIds[pathI.startNode.id] ||
+				currentNodeIds[pathI.targetNode.id];
+			const sourceIsActive = currentNodeIds[pathI.startNode.id];
+			const selectedNodeIsCollapsed =
+				this.nodesById[Object.values(currentNodeIds)[0]?.id]?.node?.collapsed;
+			if (
+				!pathIsActive ||
+				selectedNodeIsCollapsed ||
+				Object.keys(currentNodeIds).length > 1
+			) {
+				continue;
+			}
+
+			const connection = pathI.startNode.outputs[pathI.sourceSlot];
+			const origSlotColor =
+				this.canvas.default_connection_color_byType[connection.type] ||
+				this.canvas.default_connection_color.input_on;
+
+			const hsl = RGBToHSL(...hexToRGB(origSlotColor.toString()));
+			hsl[2] = 85;
+			hsl[1] = Math.min(hsl[1] + 0.2, 100);
+			const slotColor = rgbToHex(...HSLToRGB(...hsl));
+			hsl[2] = 20;
+			const textColor = rgbToHex(...HSLToRGB(...hsl));
+
+			const arcR = 7,
+				dist = 15,
+				distEnd = 15;
+			const pathStart = path[0];
+			const pathEnd = path[path.length - 1];
+			const sourceArea = this.nodesById[pathI.sourceNode.id].actualArea;
+			const targetArea = this.nodesById[pathI.targetNode.id].actualArea;
+			ctx.fillStyle = slotColor;
+			ctx.beginPath();
+			ctx.arc(sourceArea[RIGHT] + dist, pathStart[1], arcR, 0, 2 * Math.PI);
+			ctx.fill();
+			ctx.beginPath();
+			ctx.arc(targetArea[LEFT] - distEnd, pathEnd[1], arcR, 0, 2 * Math.PI);
+			ctx.fill();
+			ctx.strokeStyle = slotColor;
+			ctx.beginPath();
+			ctx.moveTo(pathStart[0], pathStart[1]);
+			ctx.lineTo(sourceArea[RIGHT] + dist, pathStart[1]);
+			ctx.stroke();
+			ctx.closePath();
+			ctx.beginPath();
+			ctx.moveTo(pathEnd[0], pathEnd[1]);
+			ctx.lineTo(targetArea[LEFT] - dist, pathEnd[1]);
+			ctx.stroke();
+			ctx.closePath();
+
+			ctx.fillStyle = textColor;
+			ctx.font = "10px Arial";
+			ctx.textAlign = "center";
+			ctx.fillText(
+				((sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1).toString(),
+				sourceArea[RIGHT] + dist,
+				pathStart[1] + 4
+			);
+			ctx.fillText(
+				((sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1).toString(),
+				targetArea[LEFT] - distEnd,
+				pathEnd[1] + 4
+			);
 		}
 
 		if (this.debug) {
