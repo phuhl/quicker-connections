@@ -31,6 +31,7 @@ export class MapLinks {
     debug;
     lastCalcTime = 0;
     lastCalculate;
+    maxTime = 0;
     constructor(canvas, ctx) {
         this.canvas = canvas;
         this.ctx = ctx;
@@ -82,44 +83,61 @@ export class MapLinks {
     }
     previousNodePositions = {};
     previousLinks = {};
-    mapLinks(nodesByExecution) {
+    pathsToBeChecked = new Set();
+    timeout = null;
+    // - remove nodes that are not in the graph anymore from previousNodePositions
+    // - remove links that are not in the graph anymore from previousLinks
+    // - check if node positions have changed, if so, add to nodeIdsChanged
+    // - check if links have changed, if so, add to linkIdsChanged
+    // - get all links from changed nodes
+    // - get all nodes from changed links, also using linkTouchesNode
+    mapLinks(nodesByExecution, rerun = false) {
         if (!this.canvas.graph.links) {
             console.error("Missing graph.links", this.canvas.graph); // eslint-disable-line no-console
             return;
         }
-        const startCalcTime = new Date().getTime();
-        this.parseNodes(nodesByExecution);
-        const changedNodes = this.updateNodes();
-        const changedLinks = this.updateLinks();
-        if (changedNodes.size === 0 && changedLinks.size === 0) {
+        const startCalcTime = Date.now();
+        clearTimeout(this.timeout);
+        if (!rerun) {
+            this.maxTime = 0;
+            this.parseNodes(nodesByExecution);
+            const changedNodes = this.updateNodes();
+            const changedLinks = this.updateLinks();
+            if (changedNodes.size !== 0 || changedLinks.size !== 0) {
+                const prevPathsToBeChecked = this.pathsToBeChecked;
+                this.pathsToBeChecked = new Set();
+                const linkIdsFromNodes = this.getLinksFromNodes(changedNodes).union(changedLinks);
+                // Insert these first so they get calculated first
+                for (const id of linkIdsFromNodes) {
+                    this.pathsToBeChecked.add(id);
+                    this.definePathForLink(id, true);
+                }
+                // worse performance (as we take longer to process all links),
+                // but better accuracy, as we recalculate all paths that might
+                // be suboptimal.
+                for (const id in this.paths) {
+                    this.pathsToBeChecked.add(id);
+                }
+                this.pathsToBeChecked =
+                    this.pathsToBeChecked.union(prevPathsToBeChecked);
+            }
+        }
+        if (this.pathsToBeChecked.size === 0) {
             return;
         }
-        // - remove nodes that are not in the graph anymore from previousNodePositions
-        // - remove links that are not in the graph anymore from previousLinks
-        // - check if node positions have changed, if so, add to nodeIdsChanged
-        // - check if links have changed, if so, add to linkIdsChanged
-        // - get all links from changed nodes
-        // - get all nodes from changed links, also using linkTouchesNode
-        const linkIdsFromNodes = this.getLinksFromNodes(changedNodes).union(changedLinks);
-        // const nodesToBeUpdated = this.getNodesFromLinks(changedLinks).union(
-        // 	this.getNodesFromLinks(linkIdsFromNodes)
-        // );
-        for (const link of linkIdsFromNodes) {
+        while (Date.now() - startCalcTime < 5 && this.pathsToBeChecked.size > 0) {
+            const link = this.pathsToBeChecked.values().next().value;
+            this.pathsToBeChecked.delete(link);
             this.definePathForLink(link);
         }
-        // for (const { node } of this.nodes) {
-        // 	if (!node.outputs || !nodesToBeUpdated.has(String(node.id))) {
-        // 		continue;
-        // 	}
-        // 	for (const input of node.inputs) {
-        // 		if (!input.link) {
-        // 			continue;
-        // 		}
-        // 		this.definePathForLink(input.link);
-        // 	}
-        // }
+        if (this.pathsToBeChecked.size !== 0) {
+            this.timeout = setTimeout(() => this.mapLinks(nodesByExecution, true), 0);
+        }
         this.lastCalculate = new Date().getTime();
         this.lastCalcTime = this.lastCalculate - startCalcTime;
+        if (this.maxTime < this.lastCalcTime) {
+            this.maxTime = this.lastCalcTime;
+        }
         if (this.debug)
             console.log("last calc time", this.lastCalcTime); // eslint-disable-line no-console
     }
@@ -244,12 +262,16 @@ export class MapLinks {
         }
         return nodeIds;
     }
-    definePathForLink(linkId) {
+    definePathForLink(linkId, fast = false) {
         const link = this.canvas.graph?.links[linkId];
         const sourceNode = link && this.canvas.graph?.getNodeById(link.origin_id);
         const targetNode = link && this.canvas.graph?.getNodeById(link.target_id);
         delete this.paths[linkId];
-        if (!link || !sourceNode || !targetNode) {
+        if (!link ||
+            !sourceNode ||
+            !targetNode ||
+            !this.nodesById[sourceNode.id] ||
+            !this.nodesById[targetNode.id]) {
             return;
         }
         const hasOutput = sourceNode.outputs?.some((l) => l.links?.some((l) => String(l) === linkId));
@@ -267,7 +289,7 @@ export class MapLinks {
         const inputBlockedByNode = this.getNodeOnPos(inputXY);
         const outputBlockedByNode = this.getNodeOnPos(outputXY);
         let path = null;
-        if (!inputBlockedByNode && !outputBlockedByNode) {
+        if (!inputBlockedByNode && !outputBlockedByNode && !fast) {
             const pathFound = this.mapLink(outputXY, inputXY, outputNodeInfo, targetNodeInfo, link);
             if (pathFound && pathFound.length > 2) {
                 path = [outputXYConnection, ...pathFound, inputXYConnection];
