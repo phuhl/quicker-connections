@@ -41,6 +41,8 @@ const getVectorDist = (a: Point, b: Point) => {
 	return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2);
 };
 
+const EXPAND_RECALC_BOUNDING_BOX_BY = 200;
+
 export class MapLinks {
 	private nodes: Node[];
 	private nodesById: Record<any, Node>;
@@ -176,10 +178,9 @@ export class MapLinks {
 				// recalculate them to fix missing links and improve suboptimal paths
 				const bbox = this.getBoundingBoxArroundLinks(linkIdsFromNodes);
 				const pathsInArea = this.getLinksInArea(bbox);
-				for (const id in pathsInArea) {
+				for (const id of pathsInArea) {
 					this.pathsToBeChecked.add(id);
 				}
-
 				this.pathsToBeChecked =
 					this.pathsToBeChecked.union(prevPathsToBeChecked);
 			}
@@ -226,7 +227,12 @@ export class MapLinks {
 			boundingBox[DOWN] = Math.max(area[DOWN], boundingBox[DOWN]);
 		}
 
-		return boundingBox;
+		return [
+			boundingBox[0] - EXPAND_RECALC_BOUNDING_BOX_BY,
+			boundingBox[1] - EXPAND_RECALC_BOUNDING_BOX_BY,
+			boundingBox[2] + EXPAND_RECALC_BOUNDING_BOX_BY,
+			boundingBox[3] + EXPAND_RECALC_BOUNDING_BOX_BY,
+		] as BoundingBox;
 	}
 
 	getLinksInArea(area: BoundingBox) {
@@ -406,15 +412,25 @@ export class MapLinks {
 		const outputXYConnection = sourceNode.getOutputPos(
 			link.origin_slot
 		) as Point;
-		const outputNodeInfo = this.nodesById[sourceNode.id];
-		let outputXY = Array.from(outputXYConnection) as Point;
-
 		const inputXYConnection = targetNode.getInputPos(link.target_slot) as Point;
+
+		const inputIsCollapsed = targetNode.collapsed;
+		const outputIsCollapsed = sourceNode.collapsed;
+
+		const outputNodeInfo = this.nodesById[sourceNode.id];
+		const outputXY = Array.from(outputXYConnection) as Point;
 		const inputXY = Array.from(inputXYConnection) as Point;
 		const targetNodeInfo = this.nodesById[targetNode.id];
 
 		outputXY[0] = Math.ceil(outputNodeInfo.area[RIGHT] / GRID_SIZE) * GRID_SIZE;
 		inputXY[0] = Math.floor(targetNodeInfo.area[LEFT] / GRID_SIZE) * GRID_SIZE;
+
+		if (inputIsCollapsed) {
+			inputXY[1] += Math.ceil(GRID_SIZE / 2) * link.target_slot;
+		}
+		if (outputIsCollapsed) {
+			outputXY[1] += Math.ceil(GRID_SIZE / 2) * link.origin_slot;
+		}
 
 		const inputBlockedByNode = this.getNodeOnPos(inputXY);
 		const outputBlockedByNode = this.getNodeOnPos(outputXY);
@@ -450,7 +466,6 @@ export class MapLinks {
 			sourceSlot: link.origin_slot,
 			targetSlot: link.target_slot,
 		};
-		outputXY = [outputXY[0] + this.lineSpace, outputXY[1]];
 	}
 
 	drawLinks(ctx: CanvasRenderingContext2D) {
