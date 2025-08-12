@@ -375,7 +375,7 @@ export class MapLinks {
 		outputXY = [outputXY[0] + this.lineSpace, outputXY[1]];
 	}
 
-	drawLinks(ctx) {
+	drawLinks(ctx: CanvasRenderingContext2D) {
 		if (
 			!this.canvas.default_connection_color_byType ||
 			!this.canvas.default_connection_color
@@ -395,6 +395,11 @@ export class MapLinks {
 		for (const key in this.paths) {
 			const pathI = this.paths[key];
 			const path = pathI.path;
+			const pathIsActive =
+				currentNodeIds[pathI.startNode.id] ||
+				currentNodeIds[pathI.targetNode.id];
+			const sourceIsActive = currentNodeIds[pathI.startNode.id],
+				targetIsActive = !sourceIsActive;
 
 			if (path.length <= 1) {
 				return;
@@ -402,21 +407,20 @@ export class MapLinks {
 
 			const connection = pathI.startNode.outputs[pathI.sourceSlot];
 			ctx.beginPath();
-			const slotColor =
+			let slotColor =
 				this.canvas.default_connection_color_byType[connection.type] ||
 				this.canvas.default_connection_color.input_on;
+			let textColor = "white";
 
-			if (
-				currentNodeIds[pathI.startNode.id] ||
-				currentNodeIds[pathI.targetNode.id]
-			) {
+			if (pathIsActive) {
 				const hsl = RGBToHSL(...hexToRGB(slotColor.toString()));
 				hsl[2] = 85;
 				hsl[1] = Math.min(hsl[1] + 0.2, 100);
-				ctx.strokeStyle = rgbToHex(...HSLToRGB(...hsl));
-			} else {
-				ctx.strokeStyle = slotColor;
+				slotColor = rgbToHex(...HSLToRGB(...hsl));
+				hsl[2] = 20;
+				textColor = rgbToHex(...HSLToRGB(...hsl));
 			}
+			ctx.strokeStyle = slotColor;
 			ctx.lineWidth = 3;
 			const cornerRadius = this.lineRadius;
 
@@ -469,6 +473,36 @@ export class MapLinks {
 
 			ctx.stroke();
 			ctx.closePath();
+
+			if (pathIsActive) {
+				const arcR = 7,
+					dist = 25;
+				const pathEnd = path[path.length - 1];
+				ctx.fillStyle = ctx.strokeStyle;
+				ctx.beginPath();
+				ctx.arc(path[0][0] + dist, path[0][1], arcR, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.beginPath();
+				ctx.arc(pathEnd[0] - dist, pathEnd[1], arcR, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.fillStyle = textColor;
+				ctx.font = "10px Arial";
+				ctx.textAlign = "center";
+				ctx.fillText(
+					(
+						(sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1
+					).toString(),
+					path[0][0] + dist,
+					path[0][1] + 4
+				);
+				ctx.fillText(
+					(
+						(sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1
+					).toString(),
+					pathEnd[0] - dist,
+					pathEnd[1] + 4
+				);
+			}
 
 			if (this.debug) {
 				for (let p = 0; p < path.length - 1; ++p) {

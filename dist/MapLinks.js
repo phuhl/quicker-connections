@@ -293,23 +293,26 @@ export class MapLinks {
         for (const key in this.paths) {
             const pathI = this.paths[key];
             const path = pathI.path;
+            const pathIsActive = currentNodeIds[pathI.startNode.id] ||
+                currentNodeIds[pathI.targetNode.id];
+            const sourceIsActive = currentNodeIds[pathI.startNode.id], targetIsActive = !sourceIsActive;
             if (path.length <= 1) {
                 return;
             }
             const connection = pathI.startNode.outputs[pathI.sourceSlot];
             ctx.beginPath();
-            const slotColor = this.canvas.default_connection_color_byType[connection.type] ||
+            let slotColor = this.canvas.default_connection_color_byType[connection.type] ||
                 this.canvas.default_connection_color.input_on;
-            if (currentNodeIds[pathI.startNode.id] ||
-                currentNodeIds[pathI.targetNode.id]) {
+            let textColor = "white";
+            if (pathIsActive) {
                 const hsl = RGBToHSL(...hexToRGB(slotColor.toString()));
                 hsl[2] = 85;
                 hsl[1] = Math.min(hsl[1] + 0.2, 100);
-                ctx.strokeStyle = rgbToHex(...HSLToRGB(...hsl));
+                slotColor = rgbToHex(...HSLToRGB(...hsl));
+                hsl[2] = 20;
+                textColor = rgbToHex(...HSLToRGB(...hsl));
             }
-            else {
-                ctx.strokeStyle = slotColor;
-            }
+            ctx.strokeStyle = slotColor;
             ctx.lineWidth = 3;
             const cornerRadius = this.lineRadius;
             ctx.moveTo(path[0][0], path[0][1]);
@@ -339,6 +342,22 @@ export class MapLinks {
             }
             ctx.stroke();
             ctx.closePath();
+            if (pathIsActive) {
+                const arcR = 7, dist = 25;
+                const pathEnd = path[path.length - 1];
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.beginPath();
+                ctx.arc(path[0][0] + dist, path[0][1], arcR, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(pathEnd[0] - dist, pathEnd[1], arcR, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = textColor;
+                ctx.font = "10px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(((sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1).toString(), path[0][0] + dist, path[0][1] + 4);
+                ctx.fillText(((sourceIsActive ? pathI.sourceSlot : pathI.targetSlot) + 1).toString(), pathEnd[0] - dist, pathEnd[1] + 4);
+            }
             if (this.debug) {
                 for (let p = 0; p < path.length - 1; ++p) {
                     const pos = path[p];
