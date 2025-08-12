@@ -1,6 +1,7 @@
 import { DOWN, LEFT, RIGHT, UP, } from "./utils/types.js";
 import { findClippedNode } from "./utils/findClippedNode.js";
 import { RecursiveSearch, GRID_SIZE } from "./RecursiveSearch.js";
+import { hexToRGB, HSLToRGB, rgbToHex, RGBToHSL } from "./utils/colors.js";
 const normalizeVector = (v) => {
     const len = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
     if (len === 0) {
@@ -301,7 +302,10 @@ export class MapLinks {
                 this.canvas.default_connection_color.input_on;
             if (currentNodeIds[pathI.startNode.id] ||
                 currentNodeIds[pathI.targetNode.id]) {
-                ctx.strokeStyle = "white";
+                const hsl = RGBToHSL(...hexToRGB(slotColor.toString()));
+                hsl[2] = 85;
+                hsl[1] = Math.min(hsl[1] + 0.2, 100);
+                ctx.strokeStyle = rgbToHex(...HSLToRGB(...hsl));
             }
             else {
                 ctx.strokeStyle = slotColor;

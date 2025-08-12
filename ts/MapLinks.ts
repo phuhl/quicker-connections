@@ -17,6 +17,7 @@ import type {
 	LiteGraph as _LiteGraph,
 	LLink,
 } from "@comfyorg/litegraph";
+import { hexToRGB, HSLToRGB, rgbToHex, RGBToHSL } from "./utils/colors.js";
 
 declare const LiteGraph: typeof _LiteGraph;
 
@@ -409,7 +410,10 @@ export class MapLinks {
 				currentNodeIds[pathI.startNode.id] ||
 				currentNodeIds[pathI.targetNode.id]
 			) {
-				ctx.strokeStyle = "white";
+				const hsl = RGBToHSL(...hexToRGB(slotColor.toString()));
+				hsl[2] = 85;
+				hsl[1] = Math.min(hsl[1] + 0.2, 100);
+				ctx.strokeStyle = rgbToHex(...HSLToRGB(...hsl));
 			} else {
 				ctx.strokeStyle = slotColor;
 			}
